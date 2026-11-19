@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../api/client';
-import { FloodAlert, Street, CitizenReport } from '../types';
+import { FloodAlert, Street, CitizenReport, RainfallReading } from '../types';
 import {
   ShieldAlert,
   AlertTriangle,
@@ -19,7 +19,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Building,
-  UserCheck
+  UserCheck,
+  Droplets,
+  CloudRain,
+  Eye,
+  Filter
 } from 'lucide-react';
 
 interface PublicPortalPageProps {
@@ -31,7 +35,19 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [streets, setStreets] = useState<Street[]>([]);
   const [citizenReports, setCitizenReports] = useState<CitizenReport[]>([]);
+  const [rainfallSummary, setRainfallSummary] = useState<{
+    intensity: number;
+    accumulation24h: number;
+    station: string;
+    forecast: number;
+  }>({
+    intensity: 45.2,
+    accumulation24h: 84.0,
+    station: 'IMD / Municipal Automated Weather Station',
+    forecast: 52.0
+  });
   const [loading, setLoading] = useState(true);
+  const [severityFilter, setSeverityFilter] = useState('all');
 
   // Citizen report submission modal
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -54,13 +70,25 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
     Promise.all([
       api.getAlerts({ city: activeCity }),
       api.getStreets({ city: activeCity }),
-      api.getCitizenReports({ city: activeCity })
+      api.getCitizenReports({ city: activeCity }),
+      api.getRainfall(activeCity)
     ])
-      .then(([alertsRes, streetsRes, reportsRes]) => {
+      .then(([alertsRes, streetsRes, reportsRes, rainRes]) => {
         if (isMounted) {
           setAlerts(alertsRes.alerts);
           setStreets(streetsRes.streets);
           setCitizenReports(reportsRes.reports);
+
+          if (rainRes.readings && rainRes.readings.length > 0) {
+            const rd = rainRes.readings[0];
+            setRainfallSummary({
+              intensity: rd.current_intensity_mm_hr,
+              accumulation24h: rd.accumulation_24h,
+              station: rd.station_name,
+              forecast: rd.forecast_next_2h_mm_hr
+            });
+          }
+
           if (streetsRes.streets.length > 0 && !selectedStreetName) {
             setSelectedStreetName(streetsRes.streets[0].name);
             setWardName(streetsRes.streets[0].ward_name);
@@ -124,19 +152,24 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
     }
   };
 
-  // High priority alerts broadcasted by EOC Commander to the public
-  const broadcastedAlerts = alerts.filter(
-    (a) => a.target_audience.includes('Public') || a.status === 'Broadcasted to Citizens' || a.severity === 'red'
-  );
+  // Filter public alerts: Include any active or broadcasted alerts
+  const publicAlerts = alerts.filter((a) => {
+    if (a.status === 'Resolved') return false;
+    if (severityFilter !== 'all' && a.severity !== severityFilter) return false;
+    return true;
+  });
 
-  const emergencyActiveCount = broadcastedAlerts.length;
-  const severeFloodedStreets = streets.filter((s) => s.risk_analysis && s.risk_analysis.risk_score >= 60);
+  // Top banner alert: pick the most severe active broadcast
+  const topBannerAlert =
+    alerts.find((a) => a.status === 'Broadcasted to Citizens' || a.severity === 'red') || alerts[0];
+
+  const emergencyAlertCount = alerts.filter((a) => a.status !== 'Resolved').length;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 pb-16 font-sans">
       {/* Top Citizen Header Bar */}
       <header className="sticky top-0 z-40 bg-[#071328] text-white border-b border-slate-800 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-teal-500/20 border border-teal-400/40 flex items-center justify-center text-teal-400">
               <Radio className="w-5 h-5 animate-pulse" />
@@ -154,7 +187,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {/* City Selector */}
             <div className="flex items-center gap-1.5 text-xs">
               <span className="text-slate-400 font-semibold">City:</span>
@@ -184,26 +217,26 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
         </div>
       </header>
 
-      {/* EMERGENCY BROADCAST BANNER (PASSED BY EOC COMMANDER) */}
-      {broadcastedAlerts.length > 0 && (
+      {/* TOP EMERGENCY BROADCAST TICKER (PASSED BY EOC COMMANDER) */}
+      {topBannerAlert && (
         <div className="bg-rose-600 text-white px-4 py-3 shadow-inner">
           <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5">
-              <span className="p-1 rounded-full bg-white/20 animate-ping">
+              <span className="p-1 rounded-full bg-white/20 animate-ping flex-shrink-0">
                 <AlertTriangle className="w-4 h-4 text-white" />
               </span>
               <div>
                 <strong className="font-black uppercase tracking-wider text-rose-100 mr-2">
-                  🚨 EOC COMMANDER LIVE BROADCAST:
+                  🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY:
                 </strong>
                 <span>
-                  {broadcastedAlerts[0].title} — {broadcastedAlerts[0].recommendation}
+                  {topBannerAlert.title} — {topBannerAlert.recommendation}
                 </span>
               </div>
             </div>
 
             <button
-              onClick={() => setActiveBroadcastModal(broadcastedAlerts[0])}
+              onClick={() => setActiveBroadcastModal(topBannerAlert)}
               className="self-start sm:self-auto px-3 py-1 bg-white text-rose-800 hover:bg-rose-50 rounded-lg text-xs font-bold transition-colors whitespace-nowrap shadow-xs"
             >
               View Official Cell Broadcast
@@ -220,24 +253,28 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               Active Public Alerts
             </span>
-            <div className="text-2xl font-black text-rose-600">{emergencyActiveCount} Warnings</div>
+            <div className="text-2xl font-black text-rose-600">{emergencyAlertCount} Advisories</div>
             <span className="text-xs text-slate-500 mt-1 block">Broadcasted by Municipal EOC</span>
           </div>
 
-          <div className="civic-card p-4 border-l-4 border-l-amber-500">
+          <div className="civic-card p-4 border-l-4 border-l-blue-500">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Flooded Corridors to Avoid
+              Live Rainfall Telemetry
             </span>
-            <div className="text-2xl font-black text-amber-700">{severeFloodedStreets.length} Roads</div>
-            <span className="text-xs text-slate-500 mt-1 block">Severe waterlogging reported</span>
+            <div className="text-2xl font-black text-blue-700 font-mono">
+              {rainfallSummary.intensity} mm/h
+            </div>
+            <span className="text-xs text-slate-500 mt-1 block">
+              24h Total: {rainfallSummary.accumulation24h} mm • Next 2h: {rainfallSummary.forecast} mm/h
+            </span>
           </div>
 
           <div className="civic-card p-4 border-l-4 border-l-teal-600">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Emergency Toll-Free Helpline
+              24x7 Flood Rescue Helpline
             </span>
             <div className="text-2xl font-black text-teal-800 font-mono">1533 / 1077</div>
-            <span className="text-xs text-slate-500 mt-1 block">24x7 Flood Rescue & Dewatering</span>
+            <span className="text-xs text-slate-500 mt-1 block">Toll-Free Municipal Control Room</span>
           </div>
 
           <div className="civic-card p-4 bg-teal-50/60 border-l-4 border-l-teal-500 flex flex-col justify-between">
@@ -245,7 +282,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
               <span className="text-[11px] font-bold text-teal-900 uppercase tracking-wider block mb-1">
                 Citizen Incident Reporting
               </span>
-              <p className="text-xs text-teal-800">Spotted waterlogging in your street?</p>
+              <p className="text-xs text-teal-800">Spotted flooding or choked drains?</p>
             </div>
             <button
               onClick={() => setIsReportModalOpen(true)}
@@ -259,20 +296,32 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
 
         {/* Section 1: LIVE BROADCASTED EMERGENCY ALERTS (MESSAGE ALERT PASS TO PUBLIC) */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-5 h-5 text-rose-600" />
               <h2 className="font-extrabold text-base text-slate-900">
                 Official Emergency Flood Alerts (Passed by EOC Commander)
               </h2>
             </div>
-            <span className="text-xs text-slate-500">
-              Live automated & commander-verified alerts
-            </span>
+
+            {/* Severity Filter */}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-slate-500 font-semibold">Filter:</span>
+              <select
+                value={severityFilter}
+                onChange={(e) => setSeverityFilter(e.target.value)}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-800 focus:outline-none"
+              >
+                <option value="all">All Warnings ({alerts.length})</option>
+                <option value="red">🔴 Critical Severe Only</option>
+                <option value="orange">🟠 High Advisory Only</option>
+                <option value="yellow">🟡 Moderate Watch</option>
+              </select>
+            </div>
           </div>
 
           <div className="space-y-3.5">
-            {broadcastedAlerts.length === 0 ? (
+            {publicAlerts.length === 0 ? (
               <div className="civic-card p-6 text-center text-slate-500">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                 <h4 className="font-bold text-sm text-slate-800">No Critical Public Alerts in this Region</h4>
@@ -281,29 +330,42 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                 </p>
               </div>
             ) : (
-              broadcastedAlerts.map((alert) => {
+              publicAlerts.slice(0, 10).map((alert) => {
                 const isCritical = alert.severity === 'red';
+                const isBroadcasted =
+                  alert.status === 'Broadcasted to Citizens' || alert.target_audience.includes('Public');
                 return (
                   <div
                     key={alert.id}
                     className={`civic-card p-5 border-l-4 transition-all ${
-                      isCritical ? 'border-l-rose-600 bg-rose-50/20' : 'border-l-orange-500 bg-orange-50/20'
+                      isCritical
+                        ? 'border-l-rose-600 bg-rose-50/20'
+                        : alert.severity === 'orange'
+                        ? 'border-l-orange-500 bg-orange-50/20'
+                        : 'border-l-amber-400 bg-amber-50/20'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div>
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              isCritical ? 'bg-rose-600 text-white animate-pulse' : 'bg-orange-500 text-white'
+                              isCritical
+                                ? 'bg-rose-600 text-white animate-pulse'
+                                : alert.severity === 'orange'
+                                ? 'bg-orange-500 text-white'
+                                : 'bg-amber-500 text-white'
                             }`}
                           >
-                            {isCritical ? 'EMERGENCY AVOID' : 'HIGH ADVISORY'}
+                            {isCritical ? '🔴 EMERGENCY AVOID' : alert.severity === 'orange' ? '🟠 HIGH ADVISORY' : '🟡 MODERATE WATCH'}
                           </span>
                           <span className="font-mono text-xs font-bold text-slate-600">{alert.alert_code}</span>
-                          <span className="text-xs text-slate-500">
-                            Issued: {alert.timestamp}
-                          </span>
+                          <span className="text-xs text-slate-500">Issued: {alert.timestamp}</span>
+                          {isBroadcasted && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-300">
+                              ✓ Verified EOC Public Broadcast
+                            </span>
+                          )}
                         </div>
                         <h3 className="font-bold text-base text-slate-900">{alert.title}</h3>
                         <p className="text-xs text-slate-500 mt-0.5">
@@ -316,7 +378,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-xs self-start"
                       >
                         <Radio className="w-3.5 h-3.5 text-teal-600" />
-                        <span>View Cell Broadcast Message</span>
+                        <span>View Cell Broadcast</span>
                       </button>
                     </div>
 
@@ -347,7 +409,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                 Neighborhood Road Clearance & Inundation Status
               </h2>
             </div>
-            <span className="text-xs text-slate-500">Real-time commuter check</span>
+            <span className="text-xs text-slate-500">Total {streets.length} Corridors Checked</span>
           </div>
 
           <div className="civic-card overflow-hidden">
@@ -358,15 +420,15 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                     <th className="py-2.5 px-4">Monitored Corridor</th>
                     <th className="py-2.5 px-4">City & Ward</th>
                     <th className="py-2.5 px-4">Road Clearance Status</th>
-                    <th className="py-2.5 px-4">Water Depth Risk</th>
+                    <th className="py-2.5 px-4">Estimated Water Depth</th>
                     <th className="py-2.5 px-4">Recommended Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {streets.map((st) => {
-                    const score = st.risk_analysis ? st.risk_analysis.risk_score : 50;
-                    const isSevere = score >= 65;
-                    const isModerate = score >= 35 && score < 65;
+                    const score = st.risk_analysis ? st.risk_analysis.risk_score : 30;
+                    const isSevere = score >= 55;
+                    const isModerate = score >= 28 && score < 55;
                     return (
                       <tr key={st.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="py-3 px-4 font-bold text-slate-900">{st.name}</td>
@@ -383,7 +445,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}
                           >
-                            {isSevere ? '⚠️ Heavy Waterlogging' : isModerate ? '⚡ Moderate Puddles' : '✅ Clear / Passable'}
+                            {isSevere ? '⚠️ Heavy Waterlogging' : isModerate ? '⚡ Moderate Watch / Pooling' : '✅ Clear / Passable'}
                           </span>
                         </td>
                         <td className="py-3 px-4 font-mono font-bold text-slate-800">
@@ -393,7 +455,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
                           {isSevere
                             ? 'Do not attempt in low-clearance vehicles. Use detour.'
                             : isModerate
-                            ? 'Slow driving advised. Lane 1 waterlogged.'
+                            ? 'Slow driving advised. Lane 1 water accumulation.'
                             : 'Standard traffic flow. Normal road condition.'}
                         </td>
                       </tr>
@@ -411,7 +473,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
             <div className="flex items-center gap-2">
               <Camera className="w-5 h-5 text-blue-600" />
               <h2 className="font-extrabold text-base text-slate-900">
-                Community Flood Reports Verified by Citizens
+                Community Flood Reports Verified by Citizens ({citizenReports.length} Reports)
               </h2>
             </div>
             <button
@@ -423,7 +485,7 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {citizenReports.slice(0, 6).map((report) => (
+            {citizenReports.map((report) => (
               <div key={report.id} className="civic-card p-4 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between text-xs mb-2">
