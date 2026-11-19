@@ -27,7 +27,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   activeAlertsCount,
 }) => {
-  const { activeCity, setActiveCity, user, setUserRole, setPortal } = useApp();
+  const { activeCity, setActiveCity, user, setUserRole, portal, setPortal } = useApp();
 
   const cities = ['All Cities', 'Bengaluru', 'Hyderabad', 'Chennai', 'Pune', 'Vijayawada', 'Mysuru'];
 
@@ -66,16 +66,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Portal Switch Button */}
         <div className="mt-3.5 p-2 rounded-lg bg-slate-900/90 border border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs text-white font-bold">
-            <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse" />
-            <span>EOC Command</span>
+            <span className={`w-2 h-2 rounded-full ${portal === 'public' ? 'bg-amber-400' : 'bg-teal-400'} animate-pulse`} />
+            <span>{portal === 'public' ? 'Public User' : 'EOC Command'}</span>
           </div>
           <button
-            onClick={() => setPortal('public')}
+            onClick={() => setPortal(portal === 'eoc' ? 'public' : 'eoc')}
             className="flex items-center gap-1 text-[10px] font-bold text-teal-300 hover:text-white px-2 py-1 rounded bg-teal-500/20 hover:bg-teal-500/30 border border-teal-500/30 transition-colors"
-            title="Switch to Citizen Public Safety Portal"
+            title="Toggle between EOC Command and Public User views"
           >
-            <Users className="w-3 h-3" />
-            <span>Public Portal →</span>
+            <span>{portal === 'public' ? 'EOC Mode →' : 'Public Mode →'}</span>
           </button>
         </div>
 

@@ -18,7 +18,11 @@ import {
   CheckCircle,
   Clock,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Radio,
+  Megaphone,
+  PhoneCall,
+  ShieldCheck
 } from 'lucide-react';
 
 interface DashboardPageProps {
@@ -32,6 +36,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const { activeCity, refreshTrigger, addToast } = useApp();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [emergencyAlert, setEmergencyAlert] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +60,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       .finally(() => {
         if (isMounted) setLoading(false);
       });
+
+    api
+      .getAlerts({ city: activeCity })
+      .then((res) => {
+        if (isMounted && res.alerts && res.alerts.length > 0) {
+          const majestic = res.alerts.find((a: any) =>
+            a.street_name.toLowerCase().includes('majestic')
+          );
+          setEmergencyAlert(majestic || res.alerts[0]);
+        }
+      })
+      .catch(console.error);
 
     return () => {
       isMounted = false;
@@ -90,6 +107,66 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      {/* 🚨 DEDICATED EOC COMMANDER LIVE EMERGENCY ADVISORY & PUBLIC MESSAGE ALERT SECTION */}
+      {emergencyAlert && (
+        <div className="civic-card p-5 border-l-4 border-l-rose-600 bg-white shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1.5 rounded-lg bg-rose-100 text-rose-700 animate-pulse flex-shrink-0">
+                <Radio className="w-4 h-4" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-700">
+                    🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">
+                    LIVE CITIZEN BROADCAST
+                  </span>
+                  <span className="text-xs font-semibold text-slate-500">
+                    Ref: <strong>{emergencyAlert.alert_code}</strong>
+                  </span>
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 mt-0.5">
+                  {emergencyAlert.title}
+                </h3>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => onNavigate('alerts')}
+                className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-xs"
+              >
+                View Full Advisories & Detours →
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="p-3.5 rounded-lg bg-slate-900 text-white space-y-1">
+              <span className="text-teal-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                <Megaphone className="w-3.5 h-3.5" />
+                Official Message Alert Passed to Public Users:
+              </span>
+              <p className="text-slate-100 font-medium leading-relaxed">
+                "{emergencyAlert.message}"
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-950 space-y-1">
+              <span className="text-teal-900 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-700" />
+                Civic Safety Recommendation & Detour:
+              </span>
+              <p className="text-teal-900 font-semibold leading-relaxed">
+                "{emergencyAlert.recommendation}"
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Alert Banner if High-Risk Exists */}
       {stats.severe_risk_count > 0 && (
         <div className="p-4 rounded-xl bg-gradient-to-r from-rose-50 via-rose-100/70 to-amber-50 border border-rose-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">

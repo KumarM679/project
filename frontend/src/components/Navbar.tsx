@@ -6,7 +6,8 @@ import {
   RefreshCw,
   BellRing,
   Layers,
-  Users
+  Users,
+  ShieldAlert
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -18,7 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onOpenDrainageModal,
 }) => {
-  const { activeCity, scenario, setScenario, triggerRefresh, addToast, setPortal } = useApp();
+  const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal } = useApp();
   const [isApplyingScenario, setIsApplyingScenario] = useState(false);
   const [isEvaluatingAlerts, setIsEvaluatingAlerts] = useState(false);
 
@@ -136,14 +137,36 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="hidden sm:inline">Evaluate Nowcast</span>
           </button>
 
-          {/* Switch to Public Citizen Portal */}
+          {/* Portal Switcher Pill */}
           <button
-            onClick={() => setPortal('public')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-50 text-teal-800 border border-teal-300 hover:bg-teal-100 transition-colors shadow-xs"
-            title="Switch to Public Citizen Portal View"
+            onClick={() => {
+              const nextPortal = portal === 'eoc' ? 'public' : 'eoc';
+              setPortal(nextPortal);
+              addToast(
+                nextPortal === 'public'
+                  ? 'Switched to Public User View (Live EOC Advisories Connected)'
+                  : 'Switched to EOC Commander View',
+                'info'
+              );
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
+              portal === 'public'
+                ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                : 'bg-teal-50 text-teal-800 border border-teal-300 hover:bg-teal-100'
+            }`}
+            title="Toggle between EOC Commander and Public User views"
           >
-            <Users className="w-3.5 h-3.5 text-teal-700" />
-            <span>Public Citizen View</span>
+            {portal === 'public' ? (
+              <>
+                <ShieldAlert className="w-3.5 h-3.5 text-blue-200" />
+                <span>Switch to EOC Commander</span>
+              </>
+            ) : (
+              <>
+                <Users className="w-3.5 h-3.5 text-teal-700" />
+                <span>Switch to Public User</span>
+              </>
+            )}
           </button>
 
           {/* Drainage Action */}

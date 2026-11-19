@@ -71,15 +71,6 @@ export const App: React.FC = () => {
     setEditDrainageRecord(null);
   };
 
-  if (portal === 'public') {
-    return (
-      <div className="w-screen h-screen overflow-y-auto bg-slate-50 font-sans">
-        <PublicPortalPage onSwitchToEOC={() => setPortal('eoc')} />
-        <ToastContainer />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
       {/* Deep Navy-Blue Civic Tech Sidebar */}
