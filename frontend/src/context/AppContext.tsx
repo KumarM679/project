@@ -32,6 +32,14 @@ const defaultUser: UserSession = {
   badgeNumber: 'NDMA-KA-092'
 };
 
+const citizenUser: UserSession = {
+  role: 'citizen',
+  name: 'Public Citizen / Commuter',
+  city: 'Bengaluru',
+  ward: 'Citywide Monitored Wards',
+  badgeNumber: 'CITIZEN-PORTAL'
+};
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -43,8 +51,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setPortal = (p: 'eoc' | 'public') => {
     setPortalState(p);
     localStorage.setItem('jaldrishti_portal', p);
+    if (p === 'public') {
+      setUser(citizenUser);
+    } else {
+      setUser(defaultUser);
+    }
   };
-  const [user, setUser] = useState<UserSession>(defaultUser);
+  const [user, setUser] = useState<UserSession>(() => {
+    const savedPortal = localStorage.getItem('jaldrishti_portal');
+    return savedPortal === 'public' ? citizenUser : defaultUser;
+  });
   const [scenario, setScenario] = useState<string>('monsoon_heavy');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notifications, setNotifications] = useState<ToastMessage[]>([

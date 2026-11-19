@@ -138,33 +138,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
       </nav>
 
-      {/* Role Switcher */}
-      <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-900/80 border border-slate-800/80">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-semibold uppercase text-slate-400 flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-            Active Role
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-            {user.role}
-          </span>
-        </div>
+      {/* Role Switcher - only rendered in EOC Command mode, removed in Public User mode */}
+      {portal === 'eoc' && (
+        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-900/80 border border-slate-800/80">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] font-semibold uppercase text-slate-400 flex items-center gap-1">
+              <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+              Active Role
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
+              {user.role}
+            </span>
+          </div>
 
-        <select
-          value={user.role}
-          onChange={(e) => setUserRole(e.target.value as UserRole)}
-          className="w-full bg-slate-950 text-white text-xs rounded-md px-2 py-1.5 border border-slate-700/80 focus:border-teal-500 text-xs font-medium"
-        >
-          <option value="eoc_chief">EOC Commander (Chief of Ops)</option>
-          <option value="ward_engineer">Ward Maintenance Engineer</option>
-          <option value="admin">System Admin</option>
-        </select>
+          <select
+            value={user.role}
+            onChange={(e) => setUserRole(e.target.value as UserRole)}
+            className="w-full bg-slate-950 text-white text-xs rounded-md px-2 py-1.5 border border-slate-700/80 focus:border-teal-500 text-xs font-medium"
+          >
+            <option value="eoc_chief">EOC Commander (Chief of Ops)</option>
+            <option value="ward_engineer">Ward Maintenance Engineer</option>
+            <option value="admin">System Admin</option>
+          </select>
 
-        <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
-          <span className="truncate font-medium text-slate-300">{user.name}</span>
-          <span className="text-teal-400 text-[10px]">{user.city}</span>
+          <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
+            <span className="truncate font-medium text-slate-300">{user.name}</span>
+            <span className="text-teal-400 text-[10px]">{user.city}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Experimental Disclaimer Notice */}
       <div className="p-3 bg-[#070d1e] border-t border-slate-800 text-[10px] text-slate-400 flex items-start gap-2">
