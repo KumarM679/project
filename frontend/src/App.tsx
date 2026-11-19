@@ -6,6 +6,7 @@ import { Sidebar } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { ToastContainer } from './components/ToastContainer';
 import { DrainageModal } from './components/DrainageModal';
+import { DeviceAlertBanner } from './components/DeviceAlertBanner';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -93,6 +94,9 @@ export const App: React.FC = () => {
             setIsDrainageModalOpen(true);
           }}
         />
+
+        {/* Emergency Alert Allocated to Connected Public User Device */}
+        <DeviceAlertBanner onNavigate={handleNavigate} />
 
         {/* Scrollable Viewport */}
         <main className="flex-1 overflow-y-auto pb-12">

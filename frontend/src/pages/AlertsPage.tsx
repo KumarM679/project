@@ -17,11 +17,14 @@ import {
   FileCheck2,
   Share2,
   Megaphone,
-  PlusCircle
+  PlusCircle,
+  Volume2,
+  Smartphone
 } from 'lucide-react';
+import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 
 export const AlertsPage: React.FC = () => {
-  const { activeCity, refreshTrigger, addToast, triggerRefresh } = useApp();
+  const { activeCity, refreshTrigger, addToast, triggerRefresh, portal } = useApp();
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -216,6 +219,76 @@ export const AlertsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* 🚨 DEDICATED DEVICE ALLOCATION SPOTLIGHT FOR PUBLIC USERS */}
+      {portal === 'public' && (
+        <div className="civic-card p-5 border-2 border-rose-500 bg-gradient-to-r from-rose-50 via-white to-amber-50 shadow-md space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-rose-600 text-white animate-pulse shadow-sm">
+                <Smartphone className="w-5 h-5" />
+              </span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider text-rose-700">
+                    🚨 Emergency Message Alert Allocated to This Device
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                    Device Subscribed & Armed
+                  </span>
+                </div>
+                <h4 className="text-base font-extrabold text-slate-900 mt-0.5">
+                  Majestic KSR Railway Underpass — Ward 94 Nowcasting Corridor
+                </h4>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  playDeviceAlertTone('emergency');
+                  addToast('🔊 Sounding emergency siren on this device', 'warning');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors shadow-xs"
+                title="Play audible alarm tone on this device"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Sound Device Alarm</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  const sent = await triggerDeviceNotification(
+                    '🚨 JalDrishti Device Flood Alert',
+                    '🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY: MODERATE RISK: Majestic KSR Railway Underpass — Minor curb pooling expected at low spots.'
+                  );
+                  if (sent) {
+                    addToast('🔔 Device push notification sent', 'success');
+                  } else {
+                    addToast('Allow browser notifications for background device alerts', 'info');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 transition-colors shadow-xs"
+                title="Send notification to this device"
+              >
+                <BellRing className="w-3.5 h-3.5 text-teal-600" />
+                <span>Send Device Push</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-slate-900 text-white text-xs space-y-1">
+            <span className="text-teal-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+              <Radio className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
+              Live EOC Advisory Dispatched to Connected Citizen Devices:
+            </span>
+            <p className="text-slate-100 font-semibold leading-relaxed">
+              "🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY: MODERATE RISK: Majestic KSR Railway Underpass — Minor curb pooling expected at low spots. Ward desilting crew on watch."
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Alerts Cards List */}
       <div className="space-y-4">
         {alerts.length === 0 ? (
@@ -333,6 +406,18 @@ export const AlertsPage: React.FC = () => {
                     >
                       <MessageSquare className="w-3.5 h-3.5 text-teal-600" />
                       <span>Citizen SMS Preview</span>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        playDeviceAlertTone(alert.severity === 'red' ? 'emergency' : 'warning');
+                        addToast(`🔊 Sounding alert alarm on this device for ${alert.street_name}`, 'warning');
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors"
+                      title="Play audible alarm tone on this device"
+                    >
+                      <Volume2 className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Sound Device Alarm</span>
                     </button>
                   </div>
 
