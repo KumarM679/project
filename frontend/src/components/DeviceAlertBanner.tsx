@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 import {
   Radio,
   Volume2,
+  VolumeX,
   BellRing,
   Smartphone,
   ChevronDown,
@@ -37,10 +38,16 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
   }
 
   const handlePlaySiren = () => {
-    setIsSounding(true);
-    playDeviceAlertTone('emergency');
-    addToast('🔊 Emergency siren sounding on this device', 'warning');
-    setTimeout(() => setIsSounding(false), 1300);
+    if (isSounding) {
+      stopDeviceAlertTone();
+      setIsSounding(false);
+      addToast('Emergency siren silenced', 'info');
+    } else {
+      setIsSounding(true);
+      playDeviceAlertTone('emergency');
+      addToast('🔊 Maximum-Decibel Emergency Siren Sounding!', 'warning');
+      setTimeout(() => setIsSounding(false), 4500);
+    }
   };
 
   const handleSendNotification = async () => {
@@ -86,15 +93,24 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={handlePlaySiren}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold shadow-xs transition-transform active:scale-95 ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-black shadow-md transition-all active:scale-95 ${
                 isSounding
-                  ? 'bg-amber-400 text-slate-950 animate-bounce'
-                  : 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+                  ? 'bg-rose-500 text-white animate-pulse border border-white'
+                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
               }`}
-              title="Test emergency audible alarm tone on this device"
+              title="Test emergency loud alarm siren on this device"
             >
-              <Volume2 className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden sm:inline">Sound Alarm</span>
+              {isSounding ? (
+                <>
+                  <VolumeX className="w-3.5 h-3.5" />
+                  <span>Silence Siren ✕</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Sound Loud Siren 🔊</span>
+                </>
+              )}
             </button>
 
             <button

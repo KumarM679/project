@@ -24,9 +24,10 @@ import {
   PhoneCall,
   ShieldCheck,
   Volume2,
+  VolumeX,
   Smartphone
 } from 'lucide-react';
-import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 
 interface DashboardPageProps {
   onNavigate: (tab: string, streetId?: number) => void;
@@ -42,6 +43,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [emergencyAlert, setEmergencyAlert] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isSirenActive, setIsSirenActive] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -140,14 +142,35 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => {
-                  playDeviceAlertTone('emergency');
-                  addToast('🔊 Sounding emergency alarm on this device', 'warning');
+                  if (isSirenActive) {
+                    stopDeviceAlertTone();
+                    setIsSirenActive(false);
+                    addToast('Emergency alarm silenced', 'info');
+                  } else {
+                    setIsSirenActive(true);
+                    playDeviceAlertTone('emergency');
+                    addToast('🔊 Maximum-Decibel Emergency Siren Sounding!', 'warning');
+                    setTimeout(() => setIsSirenActive(false), 4500);
+                  }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors shadow-xs"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all shadow-xs ${
+                  isSirenActive
+                    ? 'bg-rose-600 text-white animate-pulse border border-white'
+                    : 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold'
+                }`}
                 title="Sound alarm on this device"
               >
-                <Volume2 className="w-3.5 h-3.5 text-slate-900" />
-                <span>Sound Device Alarm</span>
+                {isSirenActive ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-white" />
+                    <span>Silence Siren ✕</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-slate-900" />
+                    <span>Sound Loud Siren 🔊</span>
+                  </>
+                )}
               </button>
 
               <button

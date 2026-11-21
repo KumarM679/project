@@ -19,9 +19,10 @@ import {
   Megaphone,
   PlusCircle,
   Volume2,
+  VolumeX,
   Smartphone
 } from 'lucide-react';
-import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 
 export const AlertsPage: React.FC = () => {
   const { activeCity, refreshTrigger, addToast, triggerRefresh, portal } = useApp();
@@ -31,6 +32,7 @@ export const AlertsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewAlert, setPreviewAlert] = useState<FloodAlert | null>(null);
+  const [isSirenActive, setIsSirenActive] = useState(false);
 
   // Custom public broadcast modal
   const [isCustomBroadcastOpen, setIsCustomBroadcastOpen] = useState(false);
@@ -246,14 +248,35 @@ export const AlertsPage: React.FC = () => {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => {
-                  playDeviceAlertTone('emergency');
-                  addToast('🔊 Sounding emergency siren on this device', 'warning');
+                  if (isSirenActive) {
+                    stopDeviceAlertTone();
+                    setIsSirenActive(false);
+                    addToast('Emergency alarm silenced', 'info');
+                  } else {
+                    setIsSirenActive(true);
+                    playDeviceAlertTone('emergency');
+                    addToast('🔊 Maximum-Decibel Emergency Siren Sounding!', 'warning');
+                    setTimeout(() => setIsSirenActive(false), 4500);
+                  }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 transition-colors shadow-xs"
-                title="Play audible alarm tone on this device"
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all shadow-xs ${
+                  isSirenActive
+                    ? 'bg-rose-600 text-white animate-pulse border border-white'
+                    : 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold'
+                }`}
+                title="Play high-volume audible alarm siren on this device"
               >
-                <Volume2 className="w-3.5 h-3.5" />
-                <span>Sound Device Alarm</span>
+                {isSirenActive ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-white" />
+                    <span>Silence Siren ✕</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5 text-slate-950" />
+                    <span>Sound Loud Siren 🔊</span>
+                  </>
+                )}
               </button>
 
               <button
