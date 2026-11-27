@@ -26,7 +26,7 @@ import {
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 
 export const AlertsPage: React.FC = () => {
-  const { activeCity, refreshTrigger, addToast, triggerRefresh, portal, user, setAuthModalOpen } = useApp();
+  const { activeCity, refreshTrigger, addToast, triggerRefresh, portal, user, setAuthModalOpen, reportedFloodLocation, setReportedFloodLocation } = useApp();
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -241,7 +241,9 @@ export const AlertsPage: React.FC = () => {
                   </span>
                 </div>
                 <h4 className="text-base font-extrabold text-slate-900 mt-0.5">
-                  {user.ward_name || user.ward || 'Majestic KSR Railway Underpass — Ward 94 Nowcasting Corridor'}
+                  {reportedFloodLocation
+                    ? `${reportedFloodLocation.street_name} (${reportedFloodLocation.ward_name})`
+                    : (user.ward_name || user.ward || 'Majestic KSR Railway Underpass — Ward 94 Nowcasting Corridor')}
                 </h4>
               </div>
             </div>
@@ -256,7 +258,7 @@ export const AlertsPage: React.FC = () => {
                   } else {
                     setIsSirenActive(true);
                     playDeviceAlertTone('emergency');
-                    addToast(`🔊 Maximum-Decibel Emergency Siren Sounding on ${user.name}'s Device!`, 'warning');
+                    addToast(`🔊 Audible Siren Sounding for ${reportedFloodLocation?.street_name || user.name}!`, 'warning');
                     setTimeout(() => setIsSirenActive(false), 4500);
                   }
                 }}
@@ -265,7 +267,7 @@ export const AlertsPage: React.FC = () => {
                     ? 'bg-rose-600 text-white animate-pulse border border-white'
                     : 'bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold'
                 }`}
-                title="Play high-volume audible alarm siren on this device"
+                title="Play audible siren alarm on this device (No vibration)"
               >
                 {isSirenActive ? (
                   <>
@@ -275,20 +277,21 @@ export const AlertsPage: React.FC = () => {
                 ) : (
                   <>
                     <Volume2 className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Sound Loud Siren 🔊</span>
+                    <span>Sound Alarm 🔊</span>
                   </>
                 )}
               </button>
 
               <button
                 onClick={async () => {
-                  const ward = user.ward_name || user.ward || 'Majestic KSR Railway Underpass';
-                  const alertMsg = `🚨 EMERGENCY FLOOD ADVISORY for ${user.name}: Moderate risk at ${ward}. Low spots pooling expected. Ward desilting crew on watch.`;
+                  const targetStreet = reportedFloodLocation?.street_name || user.ward_name || 'Majestic KSR Railway Underpass';
+                  const targetWard = reportedFloodLocation?.ward_name || user.city || 'Monitored Sector';
+                  const alertMsg = `🚨 EMERGENCY FLOOD ADVISORY for ${user.name}: Critical water depth at ${targetStreet} (${targetWard}). ${reportedFloodLocation?.recommendation || 'Low spots pooling expected. Ward desilting crew on watch.'}`;
 
                   await api.dispatchUserAlert({
                     phone: user.phone || '+91 98765 43210',
                     name: user.name,
-                    ward_name: ward,
+                    ward_name: `${targetStreet} - ${targetWard}`,
                     custom_message: alertMsg
                   }).catch(() => {});
 
@@ -297,13 +300,13 @@ export const AlertsPage: React.FC = () => {
                   }
 
                   const sent = await triggerDeviceNotification(
-                    `🚨 JalDrishti Device Alert: ${user.name}`,
+                    `🚨 JalDrishti Device Alert: ${targetStreet}`,
                     alertMsg
                   );
                   if (sent) {
-                    addToast(`🔔 Emergency notification dispatched directly to ${user.name} (${user.phone})!`, 'success');
+                    addToast(`🔔 Emergency notification dispatched for ${targetStreet} to ${user.name} (${user.phone})!`, 'success');
                   } else {
-                    addToast(`Alert sent to ${user.phone}! Allow browser notifications for background popups.`, 'info');
+                    addToast(`Alert sent for ${targetStreet} to ${user.phone}!`, 'info');
                   }
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition-colors shadow-xs"

@@ -29,13 +29,14 @@ import {
   Truck,
   Wrench
 } from 'lucide-react';
+import { playDeviceAlertTone } from '../utils/soundAlert';
 
 interface PublicPortalPageProps {
   onSwitchToEOC: () => void;
 }
 
 export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEOC }) => {
-  const { activeCity, setActiveCity, addToast, refreshTrigger, triggerRefresh } = useApp();
+  const { activeCity, setActiveCity, addToast, refreshTrigger, triggerRefresh, setReportedFloodLocation } = useApp();
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [streets, setStreets] = useState<Street[]>([]);
   const [citizenReports, setCitizenReports] = useState<CitizenReport[]>([]);
@@ -163,6 +164,23 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
       });
 
       addToast(`Report submitted! EOC Dispatch Ref: ${res.report_code}`, 'success');
+
+      // Dynamically update the system-wide device alert location based on this new flood report
+      setReportedFloodLocation({
+        street_name: selectedStreetName,
+        ward_name: wardName || targetStreet?.ward_name || 'Central Ward',
+        city: activeCity === 'All Cities' ? 'Bengaluru' : activeCity,
+        severity: waterDepth.includes('Waist') || waterDepth.includes('Deep') ? 'red' : 'orange',
+        water_depth: waterDepth,
+        report_type: reportType,
+        message: `📸 CITIZEN FLOOD REPORT: ${reportType} (${waterDepth}) at ${selectedStreetName}. ${description}`,
+        recommendation: `Heavy water accumulation reported. Maintain crawl speed or detour around ${selectedStreetName}.`,
+        source: 'citizen_report',
+        timestamp: 'Just Reported',
+        report_code: res.report_code
+      });
+      playDeviceAlertTone('warning');
+
       setIsReportModalOpen(false);
       setDescription('');
       triggerRefresh();

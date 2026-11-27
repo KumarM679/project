@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, ReportedFloodLocation } from '../context/AppContext';
 import { api } from '../api/client';
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 import {
@@ -14,7 +14,9 @@ import {
   ShieldAlert,
   ArrowRight,
   UserCheck,
-  Send
+  AlertTriangle,
+  Camera,
+  Activity
 } from 'lucide-react';
 
 interface DeviceAlertBannerProps {
@@ -22,13 +24,108 @@ interface DeviceAlertBannerProps {
 }
 
 export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate }) => {
-  const { portal, addToast, user, setAuthModalOpen } = useApp();
+  const {
+    portal,
+    addToast,
+    user,
+    setAuthModalOpen,
+    reportedFloodLocation,
+    setReportedFloodLocation,
+    activeCity,
+    refreshTrigger
+  } = useApp();
+
   const [isMinimized, setIsMinimized] = useState(false);
   const [hasPlayedInitial, setHasPlayedInitial] = useState(false);
   const [isSounding, setIsSounding] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [availableLocations, setAvailableLocations] = useState<ReportedFloodLocation[]>([]);
+  const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false);
 
-  // Play a subtle civic chime when public user view is first opened
+  // Fetch flood reports & active alerts to dynamically populate the alert location
+  useEffect(() => {
+    let isMounted = true;
+
+    Promise.all([
+      api.getCitizenReports({ city: activeCity }).catch(() => ({ reports: [] })),
+      api.getAlerts({ city: activeCity }).catch(() => ({ alerts: [] }))
+    ]).then(([repRes, alertRes]) => {
+      if (!isMounted) return;
+
+      const list: ReportedFloodLocation[] = [];
+
+      // 1. Add citizen crowdsourced reports (most urgent ground truth)
+      if (repRes.reports && repRes.reports.length > 0) {
+        repRes.reports.forEach((r: any) => {
+          list.push({
+            street_name: r.street_name,
+            ward_name: r.ward_name,
+            city: r.city,
+            severity: r.water_depth?.toLowerCase().includes('waist') || r.water_depth?.toLowerCase().includes('deep') ? 'red' : 'orange',
+            water_depth: r.water_depth,
+            report_type: r.report_type,
+            message: `📸 CITIZEN FLOOD REPORT: ${r.report_type} (${r.water_depth}) reported by ${r.citizen_name || 'Resident'}: ${r.description || 'Water accumulation obstructing traffic.'}`,
+            recommendation: `High water depth detected. Divert around ${r.street_name} and use designated detour corridors.`,
+            source: 'citizen_report',
+            timestamp: r.created_at || 'Just Now',
+            report_code: r.report_code
+          });
+        });
+      }
+
+      // 2. Add active flood alerts from hydrological telemetry
+      if (alertRes.alerts && alertRes.alerts.length > 0) {
+        alertRes.alerts.forEach((a: any) => {
+          list.push({
+            street_name: a.street_name,
+            ward_name: a.ward_name,
+            city: a.city,
+            severity: a.severity || 'orange',
+            water_depth: `${a.water_level_cm || 35} cm water depth`,
+            report_type: 'Telemetry Flood Alert',
+            message: `🚨 EOC NOWCAST ADVISORY (${a.severity?.toUpperCase() || 'MODERATE'}): ${a.message || 'Storm runoff accumulation across lanes.'}`,
+            recommendation: a.recommended_action || 'Proceed at 20 km/h crawl speed or use elevated overpass.',
+            source: 'sensor_alert',
+            timestamp: a.alert_time || 'Live Nowcast',
+            report_code: a.alert_code
+          });
+        });
+      }
+
+      // Default fallback location if no reports exist in this city
+      if (list.length === 0) {
+        list.push({
+          street_name: user.ward_name ? user.ward_name.split('(')[0].trim() : 'Majestic KSR Railway Underpass',
+          ward_name: user.ward_name || 'Central Ward 94',
+          city: activeCity === 'All Cities' ? 'Bengaluru' : activeCity,
+          severity: 'yellow',
+          water_depth: 'Ankle Deep (15-20cm)',
+          report_type: 'Baseline Watch Corridor',
+          message: 'MODERATE RISK: Minor curb pooling expected during heavy monsoon downpours.',
+          recommendation: 'Maintain cautious speed and avoid curbside low depressions.',
+          source: 'sensor_alert',
+          timestamp: 'Standard Watch'
+        });
+      }
+
+      setAvailableLocations(list);
+
+      // Automatically update alert location by the latest flood report if not explicitly pinned
+      if (!reportedFloodLocation || list.length > 0) {
+        // If current selection is not in the new list, pick the most recent/severe report
+        const currentStillValid = reportedFloodLocation && list.some(l => l.street_name === reportedFloodLocation.street_name);
+        if (!currentStillValid) {
+          setReportedFloodLocation(list[0]);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCity, refreshTrigger]);
+
+  // Subtle audio chime on initial citizen portal opening
   useEffect(() => {
     if (portal === 'public' && !hasPlayedInitial) {
       setHasPlayedInitial(true);
@@ -42,49 +139,63 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
     return null;
   }
 
+  // Active flood report details
+  const activeLoc: ReportedFloodLocation = reportedFloodLocation || availableLocations[0] || {
+    street_name: 'Majestic KSR Railway Underpass',
+    ward_name: 'Ward 94 Corridor',
+    city: 'Bengaluru',
+    severity: 'orange',
+    water_depth: 'Knee Deep (30-45cm)',
+    report_type: 'Waterlogged Road',
+    message: 'MODERATE RISK: Water accumulation detected at underpass low spots.',
+    recommendation: 'Crawl speed 20 km/h or detour via elevated flyover.',
+    source: 'sensor_alert',
+    timestamp: 'Live'
+  };
+
   const handlePlaySiren = () => {
     if (isSounding) {
       stopDeviceAlertTone();
       setIsSounding(false);
-      addToast('Emergency siren silenced', 'info');
+      addToast('Emergency alarm silenced', 'info');
     } else {
       setIsSounding(true);
+      // Play pure audible siren tone - NO vibration
       playDeviceAlertTone('emergency');
-      addToast(`🔊 Maximum-Decibel Emergency Siren Sounding on ${user.name}'s Device!`, 'warning');
-      setTimeout(() => setIsSounding(false), 4500);
+      addToast(`🔊 Audible Emergency Siren Sounding for ${activeLoc.street_name}!`, 'warning');
+      setTimeout(() => setIsSounding(false), 4400);
     }
   };
 
   const handleSendNotification = async () => {
     setIsDispatching(true);
-    const wardName = user.ward_name || user.ward || 'Majestic & Gandhinagar (Ward 94)';
     const phone = user.phone || '+91 98765 43210';
-    const alertMsg = `🚨 EMERGENCY FLOOD ALERT for ${user.name}: Critical pooling at ${wardName}. Desilting team active. Maintain 20 km/h crawl speed.`;
+    const alertMsg = `🚨 EMERGENCY FLOOD ALERT: ${activeLoc.water_depth || 'Critical waterlogging'} at ${activeLoc.street_name} (${activeLoc.ward_name}). ${activeLoc.recommendation}`;
 
     try {
-      // 1. Dispatch through backend API for logging and cell subscriber queue
+      // 1. Dispatch through backend API for logging
       await api.dispatchUserAlert({
         phone,
         name: user.name,
-        ward_name: wardName,
+        ward_name: `${activeLoc.street_name} - ${activeLoc.ward_name}`,
         custom_message: alertMsg
-      }).catch(err => console.warn('Backend dispatch log:', err));
+      }).catch(err => console.warn('Backend dispatch:', err));
 
-      // 2. Audible tone if enabled
+      // 2. Play warning audible tone
       if (user.sound_alerts_enabled !== false) {
         playDeviceAlertTone('warning');
       }
 
       // 3. Trigger native browser push notification
       const success = await triggerDeviceNotification(
-        `🚨 JalDrishti Device Alert: ${user.name}`,
+        `🚨 JalDrishti Device Alert: ${activeLoc.street_name}`,
         alertMsg
       );
 
       if (success) {
-        addToast(`🔔 Emergency Alert dispatched directly to ${user.name} (${phone})!`, 'success');
+        addToast(`🔔 Emergency notification dispatched for ${activeLoc.street_name} to ${user.name} (${phone})!`, 'success');
       } else {
-        addToast(`Alert sent to ${phone}! Allow browser notifications for background popups.`, 'info');
+        addToast(`Alert sent for ${activeLoc.street_name} to ${phone}!`, 'info');
       }
     } catch (err: any) {
       addToast(`Dispatch issue: ${err.message}`, 'error');
@@ -93,13 +204,15 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
     }
   };
 
+  const isCritical = activeLoc.severity === 'red';
+
   return (
-    <aside aria-label="Emergency Flood Advisory" className="bg-gradient-to-r from-rose-900 via-rose-800 to-amber-900 text-white shadow-md border-b-2 border-rose-500 transition-all duration-300">
+    <aside aria-label="Emergency Flood Advisory" className="bg-gradient-to-r from-rose-950 via-rose-900 to-amber-950 text-white shadow-md border-b-2 border-rose-500 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           {/* Header & Status Indicator */}
           <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
-            <span className="p-1.5 rounded-lg bg-rose-600/90 text-white animate-pulse flex-shrink-0 shadow-sm">
+            <span className={`p-1.5 rounded-lg text-white shadow-sm flex-shrink-0 animate-pulse ${isCritical ? 'bg-red-600' : 'bg-rose-600'}`}>
               <Radio className="w-4 h-4" />
             </span>
 
@@ -109,13 +222,67 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                 Alert Allocated to: <strong className="text-white underline decoration-amber-400">{user.name}</strong>
               </span>
 
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Device: Armed ({user.phone || '+91 98765 43210'})
-              </span>
+              {/* Dynamic Flood Report Location Badge */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsLocationSelectorOpen(!isLocationSelectorOpen)}
+                  className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-1 rounded-md bg-amber-400 text-slate-950 hover:bg-amber-300 transition-colors shadow-xs"
+                  title="Click to change alert location based on citizen flood reports"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-rose-700" />
+                  <span className="truncate max-w-[220px]">
+                    {activeLoc.street_name}
+                  </span>
+                  <span className="text-[10px] bg-slate-900/20 px-1 rounded font-bold">
+                    {activeLoc.water_depth || 'Flood Report'}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
 
-              <span className="text-xs font-bold text-amber-200 truncate hidden md:inline">
-                {user.ward_name || user.ward || 'Majestic KSR Railway Underpass'}
+                {/* Dropdown list of live flood reports & alerts */}
+                {isLocationSelectorOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 space-y-1.5 max-h-80 overflow-y-auto">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 flex items-center justify-between border-b border-slate-800">
+                      <span>Live Flood Reports & Hotspots</span>
+                      <span className="text-amber-400">{availableLocations.length} active</span>
+                    </div>
+
+                    {availableLocations.map((loc, idx) => (
+                      <button
+                        key={`${loc.street_name}-${idx}`}
+                        onClick={() => {
+                          setReportedFloodLocation(loc);
+                          setIsLocationSelectorOpen(false);
+                          addToast(`Alert location changed to ${loc.street_name}`, 'info');
+                          playDeviceAlertTone('chime');
+                        }}
+                        className={`w-full text-left p-2 rounded-lg text-xs transition-all flex items-start gap-2 ${
+                          activeLoc.street_name === loc.street_name
+                            ? 'bg-rose-900/60 text-white border border-rose-500'
+                            : 'hover:bg-slate-800 text-slate-200'
+                        }`}
+                      >
+                        {loc.source === 'citizen_report' ? (
+                          <Camera className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <Activity className="w-3.5 h-3.5 text-teal-400 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-extrabold truncate text-white">{loc.street_name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{loc.ward_name} ({loc.city})</div>
+                          <div className="text-[10px] font-bold text-amber-300 mt-0.5">
+                            {loc.water_depth || loc.report_type} • {loc.timestamp}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Armed: {user.phone || '+91 98765 43210'}
               </span>
             </div>
           </div>
@@ -129,17 +296,17 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                   ? 'bg-rose-500 text-white animate-pulse border border-white'
                   : 'bg-amber-400 hover:bg-amber-300 text-slate-950'
               }`}
-              title="Test emergency loud alarm siren on this device"
+              title="Test audible siren alarm on this device (No vibration)"
             >
               {isSounding ? (
                 <>
                   <VolumeX className="w-3.5 h-3.5" />
-                  <span>Silence Siren ✕</span>
+                  <span>Silence Sound ✕</span>
                 </>
               ) : (
                 <>
                   <Volume2 className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Sound Loud Siren 🔊</span>
+                  <span>Sound Alarm 🔊</span>
                 </>
               )}
             </button>
@@ -156,11 +323,11 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
 
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-rose-700/60 hover:bg-rose-700 text-rose-100 border border-rose-400/40 shadow-xs transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-rose-800/70 hover:bg-rose-800 text-rose-100 border border-rose-500/40 shadow-xs transition-colors"
               title="Edit alert subscription profile & phone number"
             >
               <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
-              <span className="hidden md:inline">Alert Profile</span>
+              <span className="hidden md:inline">Alert Settings</span>
             </button>
 
             <button
@@ -182,16 +349,16 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* Expanded Advisory Details */}
+        {/* Expanded Advisory Details - Dynamically Reflects the Flood Report Location */}
         {!isMinimized && (
           <div className="mt-2.5 pt-2 border-t border-rose-700/60 grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-            <div className="bg-black/30 p-2.5 rounded-lg border border-white/10 space-y-1">
+            <div className="bg-black/35 p-2.5 rounded-lg border border-white/10 space-y-1">
               <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3 text-amber-400" />
-                Live Message Alert Allocated to {user.name} ({user.phone || 'This Device'}):
+                Active Flood Report Allocated to {user.name} ({activeLoc.street_name}):
               </span>
               <p className="text-white font-medium leading-snug">
-                🚨 <strong>EOC COMMANDER LIVE EMERGENCY ADVISORY:</strong> MODERATE RISK at {user.ward_name || user.ward || 'Majestic KSR Railway Underpass'} — Minor curb pooling expected at low spots. Ward desilting crew on watch.
+                🚨 <strong>{activeLoc.source === 'citizen_report' ? 'VERIFIED CITIZEN REPORT' : 'EOC TELEMETRY NOWCAST'}:</strong> {activeLoc.message}
               </p>
             </div>
 
@@ -201,7 +368,7 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                 Recommended Commuter Action & Detour:
               </span>
               <p className="text-emerald-100 font-medium leading-snug">
-                Maintain 20 km/h crawl speed. Avoid curbside pooling near {user.ward_name ? user.ward_name.split('(')[0] : 'Majestic'} low points. Take elevated corridors if storm water accumulates.
+                {activeLoc.recommendation}
               </p>
             </div>
           </div>

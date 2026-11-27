@@ -43,7 +43,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'alerts', label: 'Flood Risk Alerts', icon: Bell, badge: activeAlertsCount > 0 ? activeAlertsCount : undefined },
     { id: 'municipal-response', label: 'Municipal Response', icon: Truck },
     { id: 'analytics', label: 'Analytics & Trends', icon: BarChart3 },
-    { id: 'login', label: 'Citizen Alert Login', icon: UserCheck },
   ];
 
   return (

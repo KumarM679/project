@@ -8,6 +8,20 @@ export interface ToastMessage {
   timestamp: string;
 }
 
+export interface ReportedFloodLocation {
+  street_name: string;
+  ward_name: string;
+  city: string;
+  severity: 'red' | 'orange' | 'yellow' | string;
+  water_depth?: string;
+  report_type?: string;
+  message?: string;
+  recommendation?: string;
+  source: 'citizen_report' | 'sensor_alert' | 'simulation';
+  timestamp?: string;
+  report_code?: string;
+}
+
 interface AppContextType {
   portal: 'eoc' | 'public';
   setPortal: (p: 'eoc' | 'public') => void;
@@ -26,6 +40,8 @@ interface AppContextType {
   notifications: ToastMessage[];
   addToast: (message: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   removeToast: (id: string) => void;
+  reportedFloodLocation: ReportedFloodLocation | null;
+  setReportedFloodLocation: (loc: ReportedFloodLocation | null) => void;
 }
 
 const defaultUser: UserSession = {
@@ -69,6 +85,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [activeCity, setActiveCity] = useState<string>('All Cities');
   const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
+  const [reportedFloodLocation, setReportedFloodLocation] = useState<ReportedFloodLocation | null>(null);
 
   // By default, require user login/registration first before showing dashboard
   const [user, setUser] = useState<UserSession>(() => {
@@ -219,6 +236,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         addToast,
         removeToast,
+        reportedFloodLocation,
+        setReportedFloodLocation,
       }}
     >
       {children}
