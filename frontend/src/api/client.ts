@@ -287,4 +287,19 @@ export const api = {
         body: JSON.stringify(params),
       }
     ),
+
+  sendSmsAlert: (params: { phone: string; name?: string; location?: string; message?: string; severity?: string }) =>
+    fetchJson<{
+      success: boolean;
+      status: string;
+      phone: string;
+      recipient: string;
+      location: string;
+      sms_body: string;
+      gateway: string;
+      delivery_timestamp: string;
+    }>(`${API_BASE}/alerts/send-sms`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
 };

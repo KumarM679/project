@@ -137,8 +137,8 @@ export const App: React.FC = () => {
           }}
         />
 
-        {/* Emergency Alert Allocated to Connected Public User Device */}
-        <DeviceAlertBanner onNavigate={handleNavigate} />
+        {/* Emergency Alert Allocated to Connected Public User Device - DISPLAYED ON DASHBOARD ONLY */}
+        {currentTab === 'dashboard' && <DeviceAlertBanner onNavigate={handleNavigate} />}
 
         {/* Scrollable Viewport */}
         <main className="flex-1 overflow-y-auto pb-12">
