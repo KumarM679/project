@@ -48,6 +48,8 @@ export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) 
     Pune: [18.53, 73.82, 12],
     Vijayawada: [16.51, 80.64, 13],
     Mysuru: [12.31, 76.64, 13],
+    Chikkaballapur: [13.4325, 77.7275, 13],
+    Chikkabalupur: [13.4325, 77.7275, 13],
   };
 
   // Load Data

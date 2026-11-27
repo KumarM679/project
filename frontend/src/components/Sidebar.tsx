@@ -32,7 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { activeCity, setActiveCity, user, setUserRole, portal, setPortal, setAuthModalOpen, logoutUserSession } = useApp();
 
-  const cities = ['All Cities', 'Bengaluru', 'Hyderabad', 'Chennai', 'Pune', 'Vijayawada', 'Mysuru'];
+  const cities = ['All Cities', 'Bengaluru', 'Hyderabad', 'Chennai', 'Pune', 'Vijayawada', 'Mysuru', 'Chikkaballapur'];
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard Overview', icon: LayoutDashboard },

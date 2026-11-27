@@ -247,9 +247,12 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
               >
                 <option value="All Cities">All Cities</option>
                 <option value="Bengaluru">Bengaluru</option>
+                <option value="Hyderabad">Hyderabad</option>
                 <option value="Chennai">Chennai</option>
                 <option value="Pune">Pune</option>
-                <option value="Hyderabad">Hyderabad</option>
+                <option value="Vijayawada">Vijayawada</option>
+                <option value="Mysuru">Mysuru</option>
+                <option value="Chikkaballapur">Chikkaballapur (Chikkabalupur)</option>
               </select>
             </div>
 

@@ -20,7 +20,8 @@ export const OPERATIONAL_ZONES = [
   'Chennai',
   'Pune',
   'Vijayawada',
-  'Mysuru'
+  'Mysuru',
+  'Chikkaballapur'
 ] as const;
 
 export type OperationalZoneCity = typeof OPERATIONAL_ZONES[number];
@@ -307,18 +308,57 @@ export const MONITORED_PLACES_BY_ZONE: Record<string, MonitoredPlace[]> = {
       default_risk: 'High',
       advisory: 'Low-contour drainage basin. Take outer ring road bypass.'
     }
+  ],
+  Chikkaballapur: [
+    {
+      id: 28,
+      name: 'BB Road - Shidlaghatta Circle Underpass',
+      ward_name: 'Shidlaghatta Circle',
+      city: 'Chikkaballapur',
+      latitude: 13.4355,
+      longitude: 77.7290,
+      default_risk: 'High',
+      advisory: 'Heavy underpass dip accumulation. Divert via outer bypass road.'
+    },
+    {
+      id: 29,
+      name: 'Kandavara Lake Inflow Feeder Road',
+      ward_name: 'Kandavara',
+      city: 'Chikkaballapur',
+      latitude: 13.4280,
+      longitude: 77.7340,
+      default_risk: 'Medium',
+      advisory: 'Lake surplus backflow on curbside. Maintain crawl speed.'
+    },
+    {
+      id: 30,
+      name: 'Chikkaballapur Old Bus Stand Low Depression',
+      ward_name: 'Central Town',
+      city: 'Chikkaballapur',
+      latitude: 13.4310,
+      longitude: 77.7240,
+      default_risk: 'High',
+      advisory: 'Commercial basin waterlogging. Move towards elevated central road.'
+    }
   ]
 };
 
 /**
  * Returns all monitored places for a given operational zone city.
+ * Normalizes both 'Chikkaballapur' and 'Chikkabalupur'.
  */
 export function getPlacesForZone(city: string): MonitoredPlace[] {
-  if (city === 'All Cities' || !MONITORED_PLACES_BY_ZONE[city]) {
-    // Return all places across all zones
+  if (city === 'All Cities') {
     return Object.values(MONITORED_PLACES_BY_ZONE).flat();
   }
-  return MONITORED_PLACES_BY_ZONE[city];
+  const normalized = (city || '').toLowerCase().replace(/[^a-z]/g, '');
+  if (normalized.includes('chikkaba')) {
+    return MONITORED_PLACES_BY_ZONE['Chikkaballapur'] || [];
+  }
+  if (MONITORED_PLACES_BY_ZONE[city]) {
+    return MONITORED_PLACES_BY_ZONE[city];
+  }
+  return Object.values(MONITORED_PLACES_BY_ZONE).flat();
 }
 
 /**

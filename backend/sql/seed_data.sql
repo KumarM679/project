@@ -42,7 +42,10 @@ INSERT INTO streets (id, name, city, ward_name, ward_no, latitude, longitude, ro
 (24, 'One Town Canal Bank Relief Road', 'Vijayawada', 'One Town', 'Ward 03', 16.5186, 80.6120, 'Canal Basin Road', 0.85, 0.5, 850, 19.0, 39000, 'High'),
 (25, 'Sayyaji Rao Road Heritage Corridor', 'Mysuru', 'Mandi Mohalla', 'Ward 22', 12.3168, 76.6508, 'Heritage Arterial', 0.82, 0.8, 900, 768.0, 37000, 'Low'),
 (26, 'D. Devaraj Urs Road Shopping Precinct', 'Mysuru', 'Subbarayanakere', 'Ward 25', 12.3075, 76.6455, 'Commercial Collector', 0.85, 0.6, 750, 772.0, 33000, 'Moderate'),
-(27, 'Kuvempunagar Double Road Low Point', 'Mysuru', 'Kuvempunagar', 'Ward 48', 12.2882, 76.6278, 'Residential Arterial', 0.80, 1.2, 1100, 780.0, 42000, 'Low');
+(27, 'Kuvempunagar Double Road Low Point', 'Mysuru', 'Kuvempunagar', 'Ward 48', 12.2882, 76.6278, 'Residential Arterial', 0.80, 1.2, 1100, 780.0, 42000, 'Low'),
+(28, 'BB Road - Shidlaghatta Circle Underpass', 'Chikkaballapur', 'Shidlaghatta Circle', 'Ward 12', 13.4355, 77.7290, 'Underpass Basin', 0.90, 0.4, 650, 915.0, 28000, 'High'),
+(29, 'Kandavara Lake Inflow Feeder Road', 'Chikkaballapur', 'Kandavara', 'Ward 08', 13.4280, 77.7340, 'Lake Feeder Road', 0.86, 0.6, 820, 918.0, 31000, 'Moderate'),
+(30, 'Chikkaballapur Old Bus Stand Low Depression', 'Chikkaballapur', 'Central Town', 'Ward 05', 13.4310, 77.7240, 'Commercial Collector', 0.88, 0.5, 750, 912.0, 34000, 'High');
 
 -- 2. Drainage Seed Data
 INSERT INTO drainage (street_id, drain_code, drain_type, nominal_capacity_mm_hr, current_blockage_pct, silt_depth_cm, structural_status, last_inspected, desilt_status, maintenance_crew, discharge_outfall) VALUES
@@ -72,7 +75,10 @@ INSERT INTO drainage (street_id, drain_code, drain_type, nominal_capacity_mm_hr,
 (24, 'DRN-VJA-003', 'Canal Retaining Wall Weepholes & Trench', 38.0, 60.0, 23.0, 'Fair', '2026-10-18', 'Due', 'VMC One Town Response Squad', 'Krishna River Surplus Weir'),
 (25, 'DRN-MYS-001', 'Stone Slabs Covered Drain', 46.0, 22.0, 9.0, 'Good', '2026-10-23', 'Recent', 'MCC Zone 6 Maintenance', 'Karanji Lake Overflow Branch'),
 (26, 'DRN-MYS-002', 'Masonry Kerb Channel', 48.0, 36.0, 15.0, 'Good', '2026-10-19', 'Recent', 'MCC Zone 4 Field Gang', 'Kukkarahalli Feeder'),
-(27, 'DRN-MYS-003', 'RCC Pipe Line & Catch Pits', 56.0, 18.0, 7.0, 'Good', '2026-10-25', 'Recent', 'MCC South Zone Crew', 'Lingambudhi Catchment');
+(27, 'DRN-MYS-003', 'RCC Pipe Line & Catch Pits', 56.0, 18.0, 7.0, 'Good', '2026-10-25', 'Recent', 'MCC South Zone Crew', 'Lingambudhi Catchment'),
+(28, 'DRN-CKB-001', 'RCC Box Sump Drain', 44.0, 65.0, 24.0, 'Fair', '2026-10-20', 'Overdue', 'CCMC Rapid Cell', 'Kandavara Lake Inflow'),
+(29, 'DRN-CKB-002', 'Open Masonry Collector Drain', 52.0, 40.0, 16.0, 'Good', '2026-10-22', 'Recent', 'CCMC Ward 8 Team', 'Jakkalamadagu Feeder Channel'),
+(30, 'DRN-CKB-003', 'Covered SWD Lateral', 46.0, 58.0, 21.0, 'Fair', '2026-10-18', 'Due', 'CCMC Central Unit', 'Gopalakrishna Lake Conduit');
 
 -- 3. Rainfall Telemetry Seed Data
 INSERT INTO rainfall_readings (city, station_code, station_name, current_intensity_mm_hr, accumulation_1h, accumulation_3h, accumulation_6h, accumulation_24h, forecast_next_2h_mm_hr, sensor_status, data_source) VALUES
@@ -86,7 +92,8 @@ INSERT INTO rainfall_readings (city, station_code, station_name, current_intensi
 ('Pune', 'AWS-PNQ-01', 'PMC Shivajinagar IMD Observatory', 50.0, 42.0, 70.0, 92.0, 118.0, 55.0, 'Operational', 'Urban Hydrology Rain Station'),
 ('Pune', 'AWS-PNQ-02', 'Hinjewadi IT Corridor Micro-AWS', 28.0, 22.0, 38.0, 49.0, 62.0, 32.0, 'Operational', 'MIDC Sensor Mesh'),
 ('Vijayawada', 'AWS-VJA-01', 'VMC Benz Circle Hydro Sensor', 64.0, 56.0, 92.0, 122.0, 150.0, 70.0, 'Operational', 'State Disaster Ops Pluviometer'),
-('Mysuru', 'AWS-MYS-01', 'MCC Chamundi Foothills AWS', 24.0, 18.0, 32.0, 44.0, 58.0, 26.0, 'Operational', 'Karnataka State Natural Disaster Monitor');
+('Mysuru', 'AWS-MYS-01', 'MCC Chamundi Foothills AWS', 24.0, 18.0, 32.0, 44.0, 58.0, 26.0, 'Operational', 'Karnataka State Natural Disaster Monitor'),
+('Chikkaballapur', 'AWS-CKB-01', 'Chikkaballapur DC Office Hydro-AWS', 48.0, 42.0, 68.0, 92.0, 116.0, 54.0, 'Operational', 'KSNDMC Automatic Weather Station');
 
 -- 4. Citizen Crowdsourced Reports
 INSERT INTO citizen_reports (report_code, street_name, ward_name, city, latitude, longitude, report_type, water_depth, description, citizen_name, phone_masked, photo_url, upvotes, status) VALUES

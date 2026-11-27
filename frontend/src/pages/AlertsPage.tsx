@@ -624,9 +624,12 @@ export const AlertsPage: React.FC = () => {
                     className="w-full rounded-lg border border-slate-300 p-2 text-slate-800 bg-white"
                   >
                     <option value="Bengaluru">Bengaluru</option>
+                    <option value="Hyderabad">Hyderabad</option>
                     <option value="Chennai">Chennai</option>
                     <option value="Pune">Pune</option>
-                    <option value="Hyderabad">Hyderabad</option>
+                    <option value="Vijayawada">Vijayawada</option>
+                    <option value="Mysuru">Mysuru</option>
+                    <option value="Chikkaballapur">Chikkaballapur (Chikkabalupur)</option>
                   </select>
                 </div>
                 <div>
