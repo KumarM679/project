@@ -168,7 +168,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       });
 
       loginUserSession(res.user);
-      await checkLiveLocation(matchedPlace.name, false);
+      await checkLiveLocation(matchedPlace.name, false, true);
 
       addToast(`Location and alert subscription profile updated successfully!`, 'success');
       onClose();

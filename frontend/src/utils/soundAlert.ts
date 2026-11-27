@@ -56,6 +56,20 @@ function createSirenWavBlobUrl(durationSec = 4.2): string {
   return URL.createObjectURL(blob);
 }
 
+let isAudioMutedGlobal = false;
+
+/**
+ * Global audio muting control (e.g. while user is on the login page)
+ */
+export const setMuteAllAudio = (muted: boolean) => {
+  isAudioMutedGlobal = muted;
+  if (muted) {
+    stopDeviceAlertTone();
+  }
+};
+
+export const isAudioMuted = () => isAudioMutedGlobal;
+
 export const stopDeviceAlertTone = () => {
   try {
     if (alertTimeoutId) {
@@ -98,6 +112,11 @@ export const stopDeviceAlertTone = () => {
  * Strictly avoids device vibration.
  */
 export const playDeviceAlertTone = (type: 'emergency' | 'warning' | 'chime' = 'emergency'): boolean => {
+  // Never play audio if global audio muting is active (e.g. login page)
+  if (isAudioMutedGlobal) {
+    return false;
+  }
+
   try {
     stopDeviceAlertTone();
 

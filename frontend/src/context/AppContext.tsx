@@ -60,7 +60,7 @@ interface AppContextType {
   reportedFloodLocation: ReportedFloodLocation | null;
   setReportedFloodLocation: (loc: ReportedFloodLocation | null) => void;
   liveLocation: UserLiveLocation | null;
-  checkLiveLocation: (manualPlaceName?: string, forceAlert?: boolean) => Promise<UserLiveLocation | null>;
+  checkLiveLocation: (manualPlaceName?: string, forceAlert?: boolean, silent?: boolean) => Promise<UserLiveLocation | null>;
   isLiveTrackingActive: boolean;
   setIsLiveTrackingActive: (active: boolean) => void;
   toggleLiveTracking: () => void;
@@ -120,6 +120,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [reportedFloodLocation, setReportedFloodLocation] = useState<ReportedFloodLocation | null>(null);
 
+  // By default, require user login/registration first before showing dashboard
+  const [user, setUser] = useState<UserSession>(() => {
+    try {
+      const isAuthActive = sessionStorage.getItem('jaldrishti_auth_active');
+      const savedUser = localStorage.getItem('jaldrishti_user');
+      if (isAuthActive === 'true' && savedUser) {
+        const parsed = JSON.parse(savedUser);
+        return { ...parsed, isLoggedIn: true };
+      }
+    } catch {}
+    const savedPortal = localStorage.getItem('jaldrishti_portal');
+    const base = savedPortal === 'eoc' ? defaultUser : citizenUser;
+    return { ...base, isLoggedIn: false };
+  });
+
   // Live location tracking state & continuous GPS engine
   const [isLiveTrackingActive, setIsLiveTrackingActive] = useState<boolean>(true);
   const [liveTrackingStatus, setLiveTrackingStatus] = useState<'active' | 'searching' | 'paused' | 'error'>('active');
@@ -159,13 +174,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     lng: number,
     isGps: boolean,
     accuracy?: number,
-    forceAlert: boolean = false
+    forceAlert: boolean = false,
+    silent: boolean = false
   ): UserLiveLocation => {
     const nearest = findNearestMonitoredPlace(lat, lng, activeCity);
     const nowTime = new Date().toLocaleTimeString();
     const isHazardous = nearest.place.default_risk === 'Critical' || nearest.place.default_risk === 'High';
     const isWithinDangerZone = nearest.distanceKm <= proximityThresholdKm;
-    const shouldAlert = forceAlert || (isHazardous && isWithinDangerZone);
+    // Strictly prevent any sirens/audio alerts if silent is true, or if user is not logged in
+    const shouldAlert = !silent && user.isLoggedIn && (forceAlert || (isHazardous && isWithinDangerZone));
 
     const updated: UserLiveLocation = {
       latitude: lat,
@@ -205,8 +222,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           timestamp: nowTime
         });
 
-        // 2. Play pure audible emergency siren tone (NO vibration)
-        playDeviceAlertTone(nearest.place.default_risk === 'Critical' ? 'emergency' : 'warning');
+        // 2. Play pure audible emergency siren tone ONLY if user has sound alerts enabled
+        if (user.sound_alerts_enabled !== false) {
+          playDeviceAlertTone(nearest.place.default_risk === 'Critical' ? 'emergency' : 'warning');
+        }
 
         // 3. Trigger native device browser/OS push notification
         triggerDeviceNotification(
@@ -226,7 +245,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Continuous background GPS tracking via navigator.geolocation.watchPosition
   useEffect(() => {
-    if (!isLiveTrackingActive) {
+    // Completely pause tracking while on login page or when disabled
+    if (!isLiveTrackingActive || !user.isLoggedIn) {
       if (watchIdRef.current !== null && 'geolocation' in navigator) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
@@ -249,6 +269,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           pos.coords.longitude,
           true,
           pos.coords.accuracy,
+          false,
           false
         );
       },
@@ -271,24 +292,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         watchIdRef.current = null;
       }
     };
-  }, [isLiveTrackingActive, activeCity, proximityThresholdKm]);
+  }, [isLiveTrackingActive, activeCity, proximityThresholdKm, user.isLoggedIn]);
 
   // Simulate user moving to a specific monitored choke point (for immediate testing)
   const simulateUserLocation = (placeName: string) => {
     const places = getPlacesForZone(activeCity);
     const match = places.find(p => p.name === placeName) || places[0];
-    const loc = processLocationUpdate(match.latitude, match.longitude, false, 8, true);
+    const loc = processLocationUpdate(match.latitude, match.longitude, false, 8, true, false);
     addToast(`📍 Location simulated at ${match.name}. Live hazard proximity alert triggered!`, 'warning');
     return loc;
   };
 
-  const checkLiveLocation = async (manualPlaceName?: string, forceAlert: boolean = false): Promise<UserLiveLocation | null> => {
+  const checkLiveLocation = async (
+    manualPlaceName?: string,
+    forceAlert: boolean = false,
+    silent: boolean = false
+  ): Promise<UserLiveLocation | null> => {
     const places = getPlacesForZone(activeCity);
 
     // If manual place is chosen by user
     if (manualPlaceName) {
       const match = places.find(p => p.name === manualPlaceName) || places[0];
-      return processLocationUpdate(match.latitude, match.longitude, false, 10, forceAlert);
+      return processLocationUpdate(match.latitude, match.longitude, false, 10, forceAlert, silent);
     }
 
     // Direct GPS inquiry
@@ -301,40 +326,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               pos.coords.longitude,
               true,
               pos.coords.accuracy,
-              forceAlert
+              forceAlert,
+              silent
             );
             resolve(loc);
           },
           (err) => {
             console.warn('GPS single reading fallback:', err);
             const defaultPlace = places[0];
-            const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert);
+            const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert, silent);
             resolve(loc);
           },
           { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
         );
       } else {
         const defaultPlace = places[0];
-        const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert);
+        const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert, silent);
         resolve(loc);
       }
     });
   };
-
-  // By default, require user login/registration first before showing dashboard
-  const [user, setUser] = useState<UserSession>(() => {
-    try {
-      const isAuthActive = sessionStorage.getItem('jaldrishti_auth_active');
-      const savedUser = localStorage.getItem('jaldrishti_user');
-      if (isAuthActive === 'true' && savedUser) {
-        const parsed = JSON.parse(savedUser);
-        return { ...parsed, isLoggedIn: true };
-      }
-    } catch {}
-    const savedPortal = localStorage.getItem('jaldrishti_portal');
-    const base = savedPortal === 'eoc' ? defaultUser : citizenUser;
-    return { ...base, isLoggedIn: false };
-  });
 
   const setPortal = (p: 'eoc' | 'public') => {
     setPortalState(p);

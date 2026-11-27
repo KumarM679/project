@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../api/client';
-import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { setMuteAllAudio, stopDeviceAlertTone } from '../utils/soundAlert';
 import {
   OPERATIONAL_ZONES,
   getPlacesForZone,
@@ -76,6 +76,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
+  // Strictly mute and silence all audio while on the login page
+  useEffect(() => {
+    setMuteAllAudio(true);
+    stopDeviceAlertTone();
+    return () => {
+      setMuteAllAudio(false);
+    };
+  }, []);
+
   // Auto-sync location metadata when City / Operational Zone changes
   useEffect(() => {
     const meta = ZONE_LOCATION_METADATA[city];
@@ -146,11 +155,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
       loginUserSession(res.user);
 
-      // Silently initialize live location coordinates without blasting alarm
+      // Silently initialize live location coordinates without blasting alarm or sound
       const targetSpot = res.user.nearest_spot || res.user.ward_name || res.user.ward || 'BB Road - Shidlaghatta Circle Underpass Sump';
-      await checkLiveLocation(targetSpot, false);
+      await checkLiveLocation(targetSpot, false, true);
 
-      addToast(`Signed in successfully as ${res.user.name}! Sirens armed.`, 'success');
+      setMuteAllAudio(false);
+      addToast(`Signed in successfully as ${res.user.name}!`, 'success');
       onSuccess();
     } catch (err: any) {
       addToast(err.message || 'Login failed. Please check your credentials or create an account.', 'error');
@@ -203,10 +213,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       loginUserSession(res.user);
 
       // Silently arm live location without triggering sirens on registration
-      await checkLiveLocation(matchedPlace.name, false);
+      await checkLiveLocation(matchedPlace.name, false, true);
 
+      setMuteAllAudio(false);
       addToast(
-        `Registered successfully! Sirens armed for ${houseNo ? houseNo + ', ' : ''}${city} (${pincode}).`,
+        `Registered successfully! Alert telemetry active for ${houseNo ? houseNo + ', ' : ''}${city} (${pincode}).`,
         'success'
       );
       onSuccess();
@@ -236,7 +247,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       });
 
       loginUserSession(res.user);
-      await checkLiveLocation(targetSpot, false);
+      await checkLiveLocation(targetSpot, false, true);
+      setMuteAllAudio(false);
       addToast(`⚡ Instant Demo Login as ${res.user.name} (${cityChoice})`, 'success');
       onSuccess();
     } catch (err: any) {
