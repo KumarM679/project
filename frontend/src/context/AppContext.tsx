@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { UserRole, UserSession } from '../types';
 import { findNearestMonitoredPlace, getPlacesForZone, MonitoredPlace } from '../utils/operationalZones';
 import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
@@ -27,6 +27,7 @@ export interface ReportedFloodLocation {
 export interface UserLiveLocation {
   latitude: number;
   longitude: number;
+  accuracyMeters?: number;
   nearestPlaceName: string;
   nearestWard: string;
   city: string;
@@ -35,6 +36,7 @@ export interface UserLiveLocation {
   checkedAt: string;
   isGps: boolean;
   advisory: string;
+  proximityAlertTriggered?: boolean;
 }
 
 interface AppContextType {
@@ -59,6 +61,13 @@ interface AppContextType {
   setReportedFloodLocation: (loc: ReportedFloodLocation | null) => void;
   liveLocation: UserLiveLocation | null;
   checkLiveLocation: (manualPlaceName?: string) => Promise<UserLiveLocation | null>;
+  isLiveTrackingActive: boolean;
+  setIsLiveTrackingActive: (active: boolean) => void;
+  toggleLiveTracking: () => void;
+  liveTrackingStatus: 'active' | 'searching' | 'paused' | 'error';
+  proximityThresholdKm: number;
+  setProximityThresholdKm: (km: number) => void;
+  simulateUserLocation: (placeName: string) => void;
 }
 
 const defaultUser: UserSession = {
@@ -104,7 +113,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
   const [reportedFloodLocation, setReportedFloodLocation] = useState<ReportedFloodLocation | null>(null);
 
-  // User live location state & tracking
+  // Live location tracking state & continuous GPS engine
+  const [isLiveTrackingActive, setIsLiveTrackingActive] = useState<boolean>(true);
+  const [liveTrackingStatus, setLiveTrackingStatus] = useState<'active' | 'searching' | 'paused' | 'error'>('active');
+  const [proximityThresholdKm, setProximityThresholdKm] = useState<number>(1.5);
+  const lastAlertTimeRef = useRef<number>(0);
+  const watchIdRef = useRef<number | null>(null);
+
   const [liveLocation, setLiveLocation] = useState<UserLiveLocation | null>(() => {
     const places = getPlacesForZone('Bengaluru');
     const defaultPlace = places[0];
@@ -118,155 +133,183 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       riskLevel: defaultPlace.default_risk,
       checkedAt: new Date().toLocaleTimeString(),
       isGps: false,
-      advisory: defaultPlace.advisory
+      advisory: defaultPlace.advisory,
+      proximityAlertTriggered: false
     };
   });
+
+  const toggleLiveTracking = () => {
+    setIsLiveTrackingActive(prev => {
+      const next = !prev;
+      addToast(next ? '🟢 Real-time GPS location tracking resumed' : '⏸️ Real-time GPS tracking paused', 'info');
+      return next;
+    });
+  };
+
+  // Core real-time location evaluator and automatic hazard alert generator
+  const processLocationUpdate = (
+    lat: number,
+    lng: number,
+    isGps: boolean,
+    accuracy?: number,
+    forceAlert: boolean = false
+  ): UserLiveLocation => {
+    const nearest = findNearestMonitoredPlace(lat, lng, activeCity);
+    const nowTime = new Date().toLocaleTimeString();
+    const isHazardous = nearest.place.default_risk === 'Critical' || nearest.place.default_risk === 'High';
+    const isWithinDangerZone = nearest.distanceKm <= proximityThresholdKm;
+    const shouldAlert = forceAlert || (isHazardous && isWithinDangerZone);
+
+    const updated: UserLiveLocation = {
+      latitude: lat,
+      longitude: lng,
+      accuracyMeters: accuracy ? Math.round(accuracy) : undefined,
+      nearestPlaceName: nearest.place.name,
+      nearestWard: nearest.place.ward_name,
+      city: nearest.place.city,
+      distanceKm: nearest.distanceKm,
+      riskLevel: nearest.place.default_risk,
+      checkedAt: nowTime,
+      isGps,
+      advisory: nearest.place.advisory,
+      proximityAlertTriggered: isHazardous && isWithinDangerZone
+    };
+
+    setLiveLocation(updated);
+    setLiveTrackingStatus('active');
+
+    if (shouldAlert) {
+      const now = Date.now();
+      // Throttle loud audio sirens to once every 20 seconds unless explicitly forced
+      if (forceAlert || (now - lastAlertTimeRef.current > 20000)) {
+        lastAlertTimeRef.current = now;
+
+        // 1. Immediately allocate banner & nowcast to this flood hazard
+        setReportedFloodLocation({
+          street_name: nearest.place.name,
+          ward_name: nearest.place.ward_name,
+          city: nearest.place.city,
+          severity: nearest.place.default_risk === 'Critical' ? 'red' : 'orange',
+          water_depth: nearest.place.default_risk === 'Critical' ? 'Knee Deep (30-45cm)' : 'Ankle Deep (15-20cm)',
+          report_type: 'Live GPS Proximity Warning',
+          message: `🚨 PROXIMITY HAZARD ALERT: You are ${nearest.distanceKm} km from ${nearest.place.name} (${nearest.place.ward_name}). ${nearest.place.default_risk.toUpperCase()} flood risk detected!`,
+          recommendation: nearest.place.advisory,
+          source: 'live_location',
+          timestamp: nowTime
+        });
+
+        // 2. Play pure audible emergency siren tone (NO vibration)
+        playDeviceAlertTone(nearest.place.default_risk === 'Critical' ? 'emergency' : 'warning');
+
+        // 3. Trigger native device browser/OS push notification
+        triggerDeviceNotification(
+          `🚨 LIVE FLOOD PROXIMITY ALERT: ${nearest.place.name}`,
+          `Hazard proximity warning: You are ${nearest.distanceKm} km from ${nearest.place.name}. ${nearest.place.default_risk} risk! ${nearest.place.advisory}`
+        );
+
+        addToast(
+          `🚨 HAZARD IN PROXIMITY: ${nearest.place.name} is ${nearest.distanceKm} km away (${nearest.place.default_risk} Risk). Emergency siren active!`,
+          'error'
+        );
+      }
+    }
+
+    return updated;
+  };
+
+  // Continuous background GPS tracking via navigator.geolocation.watchPosition
+  useEffect(() => {
+    if (!isLiveTrackingActive) {
+      if (watchIdRef.current !== null && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      setLiveTrackingStatus('paused');
+      return;
+    }
+
+    if (!('geolocation' in navigator)) {
+      setLiveTrackingStatus('error');
+      return;
+    }
+
+    setLiveTrackingStatus('searching');
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        processLocationUpdate(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          true,
+          pos.coords.accuracy,
+          false
+        );
+      },
+      (err) => {
+        console.warn('Geolocation continuous tracking notice:', err);
+        setLiveTrackingStatus('error');
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 4000,
+        timeout: 10000
+      }
+    );
+
+    watchIdRef.current = watchId;
+
+    return () => {
+      if (watchIdRef.current !== null && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+    };
+  }, [isLiveTrackingActive, activeCity, proximityThresholdKm]);
+
+  // Simulate user moving to a specific monitored choke point (for immediate testing)
+  const simulateUserLocation = (placeName: string) => {
+    const places = getPlacesForZone(activeCity);
+    const match = places.find(p => p.name === placeName) || places[0];
+    const loc = processLocationUpdate(match.latitude, match.longitude, false, 8, true);
+    addToast(`📍 Location simulated at ${match.name}. Live hazard proximity alert triggered!`, 'warning');
+    return loc;
+  };
 
   const checkLiveLocation = async (manualPlaceName?: string): Promise<UserLiveLocation | null> => {
     const places = getPlacesForZone(activeCity);
 
-    // If manual place is selected by user
+    // If manual place is chosen by user
     if (manualPlaceName) {
       const match = places.find(p => p.name === manualPlaceName) || places[0];
-      const result: UserLiveLocation = {
-        latitude: match.latitude,
-        longitude: match.longitude,
-        nearestPlaceName: match.name,
-        nearestWard: match.ward_name,
-        city: match.city,
-        distanceKm: 0.12,
-        riskLevel: match.default_risk,
-        checkedAt: new Date().toLocaleTimeString(),
-        isGps: false,
-        advisory: match.advisory
-      };
-
-      setLiveLocation(result);
-
-      // Immediately allocate alert to this checked location
-      setReportedFloodLocation({
-        street_name: match.name,
-        ward_name: match.ward_name,
-        city: match.city,
-        severity: match.default_risk === 'Critical' ? 'red' : match.default_risk === 'High' ? 'orange' : 'yellow',
-        water_depth: match.default_risk === 'Critical' ? 'Knee Deep (30-45cm)' : 'Ankle Deep (15-20cm)',
-        report_type: 'Live Location Check',
-        message: `📍 LIVE CHECKED LOCATION ALERT: ${match.name} (${match.ward_name}) has ${match.default_risk.toUpperCase()} flood risk! ${match.advisory}`,
-        recommendation: match.advisory,
-        source: 'live_location',
-        timestamp: result.checkedAt
-      });
-
-      // Pure audible alarm tone
-      playDeviceAlertTone('warning');
-
-      // Native push alert to device
-      triggerDeviceNotification(
-        `🚨 LIVE LOCATION FLOOD ALERT: ${match.name}`,
-        `${match.default_risk.toUpperCase()} FLOOD RISK at checked location! ${match.advisory}`
-      );
-
-      addToast(`📍 Location Checked: ${match.name} (${match.default_risk} Risk). Alert active on this device!`, match.default_risk === 'Critical' ? 'error' : 'warning');
-      return result;
+      return processLocationUpdate(match.latitude, match.longitude, false, 10, true);
     }
 
-    // Try real live GPS detection via browser Geolocation API
+    // Direct GPS inquiry
     return new Promise((resolve) => {
       if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
-            const nearest = findNearestMonitoredPlace(pos.coords.latitude, pos.coords.longitude, activeCity);
-            const result: UserLiveLocation = {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              nearestPlaceName: nearest.place.name,
-              nearestWard: nearest.place.ward_name,
-              city: nearest.place.city,
-              distanceKm: nearest.distanceKm,
-              riskLevel: nearest.place.default_risk,
-              checkedAt: new Date().toLocaleTimeString(),
-              isGps: true,
-              advisory: nearest.place.advisory
-            };
-
-            setLiveLocation(result);
-
-            // Synchronize alert location to this live location
-            setReportedFloodLocation({
-              street_name: nearest.place.name,
-              ward_name: nearest.place.ward_name,
-              city: nearest.place.city,
-              severity: nearest.place.default_risk === 'Critical' ? 'red' : nearest.place.default_risk === 'High' ? 'orange' : 'yellow',
-              water_depth: nearest.place.default_risk === 'Critical' ? 'Knee Deep (30-45cm)' : 'Ankle Deep (15-20cm)',
-              report_type: 'Live GPS Check',
-              message: `📍 LIVE PROXIMITY ALERT: You are ${nearest.distanceKm} km from ${nearest.place.name} (${nearest.place.ward_name}). ${nearest.place.default_risk.toUpperCase()} flood risk detected!`,
-              recommendation: nearest.place.advisory,
-              source: 'live_location',
-              timestamp: result.checkedAt
-            });
-
-            // Pure audible siren sound (NO vibration)
-            playDeviceAlertTone(nearest.place.default_risk === 'Critical' ? 'emergency' : 'warning');
-
-            triggerDeviceNotification(
-              `🚨 LIVE GPS PROXIMITY ALERT: ${nearest.place.name}`,
-              `Proximity warning: You are ${nearest.distanceKm} km from ${nearest.place.name}. ${nearest.place.default_risk} risk detected! ${nearest.place.advisory}`
+            const loc = processLocationUpdate(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              true,
+              pos.coords.accuracy,
+              true
             );
-
-            addToast(`📡 Live GPS verified: Nearest choke point is ${nearest.place.name} (${nearest.distanceKm} km). Alert armed!`, 'warning');
-            resolve(result);
+            resolve(loc);
           },
           (err) => {
-            console.warn('GPS location lookup blocked or timed out, using zone default:', err);
-            // Fall back to default place for current operational zone
+            console.warn('GPS single reading fallback:', err);
             const defaultPlace = places[0];
-            const fallback: UserLiveLocation = {
-              latitude: defaultPlace.latitude,
-              longitude: defaultPlace.longitude,
-              nearestPlaceName: defaultPlace.name,
-              nearestWard: defaultPlace.ward_name,
-              city: defaultPlace.city,
-              distanceKm: 0.25,
-              riskLevel: defaultPlace.default_risk,
-              checkedAt: new Date().toLocaleTimeString(),
-              isGps: false,
-              advisory: defaultPlace.advisory
-            };
-            setLiveLocation(fallback);
-            setReportedFloodLocation({
-              street_name: defaultPlace.name,
-              ward_name: defaultPlace.ward_name,
-              city: defaultPlace.city,
-              severity: defaultPlace.default_risk === 'Critical' ? 'red' : 'orange',
-              water_depth: 'Knee Deep (30-45cm)',
-              report_type: 'Checked Zone Corridor',
-              message: `📍 CHECKED LOCATION: ${defaultPlace.name} in ${defaultPlace.city}. ${defaultPlace.advisory}`,
-              recommendation: defaultPlace.advisory,
-              source: 'live_location',
-              timestamp: fallback.checkedAt
-            });
-            playDeviceAlertTone('warning');
-            addToast(`📍 Checked location: ${defaultPlace.name}. Alert armed for this device!`, 'info');
-            resolve(fallback);
+            const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, true);
+            resolve(loc);
           },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 }
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
         );
       } else {
         const defaultPlace = places[0];
-        const fallback: UserLiveLocation = {
-          latitude: defaultPlace.latitude,
-          longitude: defaultPlace.longitude,
-          nearestPlaceName: defaultPlace.name,
-          nearestWard: defaultPlace.ward_name,
-          city: defaultPlace.city,
-          distanceKm: 0.2,
-          riskLevel: defaultPlace.default_risk,
-          checkedAt: new Date().toLocaleTimeString(),
-          isGps: false,
-          advisory: defaultPlace.advisory
-        };
-        setLiveLocation(fallback);
-        resolve(fallback);
+        const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, true);
+        resolve(loc);
       }
     });
   };
@@ -424,6 +467,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setReportedFloodLocation,
         liveLocation,
         checkLiveLocation,
+        isLiveTrackingActive,
+        setIsLiveTrackingActive,
+        toggleLiveTracking,
+        liveTrackingStatus,
+        proximityThresholdKm,
+        setProximityThresholdKm,
+        simulateUserLocation,
       }}
     >
       {children}

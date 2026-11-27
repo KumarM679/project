@@ -38,7 +38,12 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
     activeCity,
     refreshTrigger,
     liveLocation,
-    checkLiveLocation
+    checkLiveLocation,
+    isLiveTrackingActive,
+    toggleLiveTracking,
+    liveTrackingStatus,
+    proximityThresholdKm,
+    simulateUserLocation
   } = useApp();
 
   const [isMinimized, setIsMinimized] = useState(false);
@@ -247,17 +252,34 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                 Alert Allocated to: <strong className="text-white underline decoration-amber-400">{user.name}</strong>
               </span>
 
-              {/* Lively Location Status Badge */}
-              <div className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md bg-teal-950/70 border border-teal-400/40 text-teal-200 shadow-xs">
-                <Navigation className="w-3.5 h-3.5 text-teal-300 animate-pulse" />
-                <span>Lively Location:</span>
-                <span className="text-white font-extrabold underline decoration-teal-400 truncate max-w-[190px]">
-                  {liveLocation?.nearestPlaceName || activeLoc.street_name}
-                </span>
-                <span className="text-[10px] bg-teal-400/20 text-teal-200 px-1.5 py-0.5 rounded font-bold">
-                  {liveLocation?.isGps ? '📡 GPS Active' : '📍 Checked'} • {liveLocation ? `${liveLocation.distanceKm} km away` : 'Active'}
-                </span>
-              </div>
+              {/* Live Tracking Status & Toggle */}
+              <button
+                type="button"
+                onClick={toggleLiveTracking}
+                className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md border transition-all shadow-xs cursor-pointer ${
+                  isLiveTrackingActive
+                    ? 'bg-teal-950/80 border-teal-400/50 text-teal-200 hover:bg-teal-900'
+                    : 'bg-slate-900/80 border-slate-700 text-slate-300 hover:bg-slate-850'
+                }`}
+                title={isLiveTrackingActive ? "Real-time GPS tracking active. Click to pause." : "Tracking paused. Click to resume."}
+              >
+                <span className={`w-2 h-2 rounded-full ${isLiveTrackingActive ? 'bg-teal-400 animate-ping' : 'bg-slate-500'}`} />
+                <Navigation className="w-3.5 h-3.5 text-teal-300" />
+                <span>{isLiveTrackingActive ? 'Tracking: ON' : 'Tracking: PAUSED'}</span>
+                {liveLocation && (
+                  <span className="text-[10px] bg-teal-400/20 text-teal-200 px-1 rounded font-bold">
+                    {liveLocation.nearestPlaceName.split(' ')[0]} ({liveLocation.distanceKm} km)
+                  </span>
+                )}
+              </button>
+
+              {/* Automatic Proximity Danger Badge */}
+              {liveLocation?.proximityAlertTriggered && (
+                <div className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-1 rounded-md bg-rose-600 text-white animate-pulse border border-white/50 shadow-md">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
+                  <span>HAZARD ALERT: {liveLocation.distanceKm} KM TO FLOOD ZONE!</span>
+                </div>
+              )}
 
               {/* Dynamic Flood Report Location Badge */}
               <div className="relative">
@@ -447,17 +469,22 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
             </div>
 
             <div className="bg-teal-950/45 p-2.5 rounded-lg border border-teal-500/30 space-y-1">
-              <span className="text-[10px] font-bold text-teal-300 uppercase tracking-wide flex items-center gap-1">
-                <Navigation className="w-3 h-3 text-teal-400" />
-                Lively Location & Proximity Analysis:
+              <span className="text-[10px] font-bold text-teal-300 uppercase tracking-wide flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Navigation className="w-3 h-3 text-teal-400" />
+                  Live GPS Tracking & Proximity Engine:
+                </span>
+                <span className="text-[10px] text-amber-300 font-bold bg-amber-400/20 px-1.5 py-0.2 rounded">
+                  {isLiveTrackingActive ? '🟢 Live Watch Active' : '⏸️ Tracking Paused'}
+                </span>
               </span>
               <p className="text-teal-100 font-medium leading-snug">
                 {liveLocation ? (
                   <>
-                    Nearest Choke Point: <strong>{liveLocation.nearestPlaceName}</strong> ({liveLocation.distanceKm} km away) in {liveLocation.city}. Flood Risk: <span className="text-amber-300 font-bold">{liveLocation.riskLevel}</span>. Checked at {liveLocation.checkedAt}.
+                    Nearest Hazard: <strong>{liveLocation.nearestPlaceName}</strong> ({liveLocation.distanceKm} km away) in {liveLocation.city}. Hazard Rating: <span className="text-amber-300 font-bold">{liveLocation.riskLevel} Flood Risk</span>. Auto-Alert Trigger Zone: <strong>≤ {proximityThresholdKm} km</strong>. Tracked: {liveLocation.checkedAt}.
                   </>
                 ) : (
-                  <>Live GPS tracking ready. Click 'Check Live Location' to calculate instant proximity.</>
+                  <>Continuous GPS tracking is actively monitoring coordinates. Move closer to any underpass to trigger instant proximity warnings.</>
                 )}
               </p>
             </div>

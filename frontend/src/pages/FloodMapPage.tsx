@@ -11,7 +11,10 @@ import {
   AlertOctagon,
   Droplet,
   Compass,
-  Info
+  Info,
+  Crosshair,
+  Navigation,
+  Radio
 } from 'lucide-react';
 
 interface FloodMapPageProps {
@@ -19,7 +22,7 @@ interface FloodMapPageProps {
 }
 
 export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) => {
-  const { activeCity, refreshTrigger } = useApp();
+  const { activeCity, refreshTrigger, liveLocation, proximityThresholdKm, isLiveTrackingActive } = useApp();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
@@ -33,6 +36,7 @@ export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) 
   const [showStreets, setShowStreets] = useState(true);
   const [showDrainage, setShowDrainage] = useState(true);
   const [showCitizenReports, setShowCitizenReports] = useState(true);
+  const [showLiveLocation, setShowLiveLocation] = useState(true);
   const [riskFilter, setRiskFilter] = useState<string>('all'); // all, red, orange, yellow, green
 
   // City center coordinates lookup
@@ -279,7 +283,83 @@ export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) 
         repMarker.addTo(markersLayerRef.current!);
       });
     }
-  }, [streets, drainageList, citizenReports, showStreets, showDrainage, showCitizenReports, riskFilter]);
+
+    // 4. Citizen Live Tracked GPS Beacon & Proximity Zone
+    if (showLiveLocation && liveLocation && liveLocation.latitude && liveLocation.longitude) {
+      const isDanger = liveLocation.proximityAlertTriggered || (liveLocation.distanceKm <= 1.5 && (liveLocation.riskLevel === 'Critical' || liveLocation.riskLevel === 'High'));
+
+      // Warning perimeter radius around user
+      const proximityCircle = L.circle([liveLocation.latitude, liveLocation.longitude], {
+        radius: (proximityThresholdKm || 1.5) * 1000,
+        color: isDanger ? '#ef4444' : '#2563eb',
+        fillColor: isDanger ? '#f87171' : '#60a5fa',
+        fillOpacity: isDanger ? 0.22 : 0.12,
+        weight: isDanger ? 2 : 1,
+        dashArray: isDanger ? '4, 4' : undefined
+      });
+      proximityCircle.addTo(markersLayerRef.current!);
+
+      // Real-time pulsing beacon icon
+      const userBeaconIcon = L.divIcon({
+        html: `
+          <div style="position: relative; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;">
+            <div style="
+              position: absolute;
+              width: 36px;
+              height: 36px;
+              border-radius: 50%;
+              background: ${isDanger ? 'rgba(239, 68, 68, 0.45)' : 'rgba(37, 99, 235, 0.35)'};
+              animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+            "></div>
+            <div style="
+              position: relative;
+              width: 18px;
+              height: 18px;
+              border-radius: 50%;
+              background: ${isDanger ? '#dc2626' : '#2563eb'};
+              border: 3px solid white;
+              box-shadow: 0 0 14px ${isDanger ? 'rgba(220, 38, 38, 0.9)' : 'rgba(37, 99, 235, 0.8)'};
+            "></div>
+          </div>
+        `,
+        className: 'live-user-tracking-icon',
+        iconSize: [36, 36],
+        iconAnchor: [18, 18]
+      });
+
+      const userMarker = L.marker([liveLocation.latitude, liveLocation.longitude], {
+        icon: userBeaconIcon,
+        zIndexOffset: 1000
+      });
+
+      userMarker.bindPopup(`
+        <div style="font-family: Inter, sans-serif; min-width: 230px; padding: 2px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 4px;">
+            <span style="font-size: 10px; font-weight: 800; color: #2563eb; text-transform: uppercase;">
+              📍 YOU ARE HERE (LIVE TRACKED)
+            </span>
+            <span style="background: ${isDanger ? '#dc2626' : '#0284c7'}; color: white; font-size: 9px; font-weight: 800; padding: 2px 6px; border-radius: 4px;">
+              ${liveLocation.isGps ? 'GPS ACTIVE' : 'CHECKED'}
+            </span>
+          </div>
+          <h4 style="font-size: 13px; font-weight: 800; color: #0f172a; margin: 0 0 4px 0;">
+            ${liveLocation.nearestPlaceName}
+          </h4>
+          <div style="font-size: 11px; color: #475569; margin-bottom: 6px; line-height: 1.4;">
+            <div>• Distance to Choke Point: <b>${liveLocation.distanceKm} km</b></div>
+            <div>• Proximity Hazard Level: <b style="color: ${isDanger ? '#dc2626' : '#059669'};">${liveLocation.riskLevel}</b></div>
+            <div>• Coordinates: <b>${liveLocation.latitude.toFixed(4)}°N, ${liveLocation.longitude.toFixed(4)}°E</b></div>
+            <div>• Last Tracked: <b>${liveLocation.checkedAt}</b></div>
+          </div>
+          <p style="font-size: 10px; color: #1e293b; background: #eff6ff; padding: 6px; border-radius: 6px; border-left: 3px solid #2563eb; margin: 0;">
+            ${liveLocation.advisory}
+          </p>
+        </div>
+      `);
+
+      userMarker.addTo(markersLayerRef.current!);
+    }
+  }, [streets, drainageList, citizenReports, showStreets, showDrainage, showCitizenReports, showLiveLocation, riskFilter, liveLocation, proximityThresholdKm]);
 
   return (
     <div className="p-6 space-y-4 max-w-7xl mx-auto">
@@ -321,22 +401,52 @@ export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) 
             />
             <span className="text-slate-800">Citizen Reports ({citizenReports.length})</span>
           </label>
+
+          <label className="flex items-center gap-1.5 cursor-pointer bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 text-blue-900 font-bold">
+            <input
+              type="checkbox"
+              checked={showLiveLocation}
+              onChange={(e) => setShowLiveLocation(e.target.checked)}
+              className="accent-blue-600 rounded"
+            />
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+              Live Tracked GPS
+            </span>
+          </label>
         </div>
 
-        {/* Severity Filter */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-slate-500">Risk Filter:</span>
-          <select
-            value={riskFilter}
-            onChange={(e) => setRiskFilter(e.target.value)}
-            className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-teal-500"
+        {/* Severity Filter & Centering Action */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-500">Risk Filter:</span>
+            <select
+              value={riskFilter}
+              onChange={(e) => setRiskFilter(e.target.value)}
+              className="text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-800 focus:outline-none focus:border-teal-500"
+            >
+              <option value="all">All Risk Levels</option>
+              <option value="red">🔴 Severe / Critical Only</option>
+              <option value="orange">🟠 High Risk Only</option>
+              <option value="yellow">🟡 Moderate Watch</option>
+              <option value="green">🟢 Low Risk</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (liveLocation && mapInstanceRef.current) {
+                mapInstanceRef.current.setView([liveLocation.latitude, liveLocation.longitude], 15, { animate: true });
+              }
+            }}
+            disabled={!liveLocation}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            title="Focus map on my live GPS location"
           >
-            <option value="all">All Risk Levels</option>
-            <option value="red">🔴 Severe / Critical Only</option>
-            <option value="orange">🟠 High Risk Only</option>
-            <option value="yellow">🟡 Moderate Watch</option>
-            <option value="green">🟢 Low Risk</option>
-          </select>
+            <Crosshair className="w-3.5 h-3.5 text-white" />
+            <span>Center on Live GPS</span>
+          </button>
         </div>
       </div>
 
@@ -388,12 +498,15 @@ export const FloodMapPage: React.FC<FloodMapPageProps> = ({ onNavigateToRisk }) 
               <span className="font-mono text-slate-500">0–29</span>
             </div>
 
-            <div className="pt-2 mt-2 border-t border-slate-200 text-[10px] text-slate-500 flex items-center gap-3">
+            <div className="pt-2 mt-2 border-t border-slate-200 text-[10px] text-slate-500 flex items-center justify-between flex-wrap gap-2">
               <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-sm bg-blue-600" /> Drain
+                <span className="w-2.5 h-2.5 rounded-sm bg-blue-600" /> Drain Node
               </span>
               <span className="flex items-center gap-1">
                 <span className="w-2.5 h-2.5 rounded-full bg-purple-600" /> Citizen
+              </span>
+              <span className="flex items-center gap-1 font-bold text-blue-700">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-ping" /> You (Live GPS)
               </span>
             </div>
           </div>

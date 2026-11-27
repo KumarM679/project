@@ -27,7 +27,8 @@ import {
   Megaphone,
   Bell,
   Truck,
-  Wrench
+  Wrench,
+  Navigation
 } from 'lucide-react';
 import { playDeviceAlertTone } from '../utils/soundAlert';
 
@@ -36,7 +37,16 @@ interface PublicPortalPageProps {
 }
 
 export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEOC }) => {
-  const { activeCity, setActiveCity, addToast, refreshTrigger, triggerRefresh, setReportedFloodLocation } = useApp();
+  const {
+    activeCity,
+    setActiveCity,
+    addToast,
+    refreshTrigger,
+    triggerRefresh,
+    setReportedFloodLocation,
+    liveLocation,
+    checkLiveLocation
+  } = useApp();
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [streets, setStreets] = useState<Street[]>([]);
   const [citizenReports, setCitizenReports] = useState<CitizenReport[]>([]);
@@ -258,6 +268,49 @@ export const PublicPortalPage: React.FC<PublicPortalPageProps> = ({ onSwitchToEO
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        {/* Real-time GPS Tracking & Proximity Hazard Safety Card */}
+        {liveLocation && (
+          <div className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm ${
+            liveLocation.proximityAlertTriggered
+              ? 'bg-rose-50 border-rose-300 text-rose-950'
+              : 'bg-gradient-to-r from-blue-50 to-teal-50 border-blue-200 text-blue-950'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-xs ${
+                liveLocation.proximityAlertTriggered ? 'bg-rose-600 text-white animate-pulse' : 'bg-blue-600 text-white'
+              }`}>
+                <Navigation className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider">
+                    {liveLocation.proximityAlertTriggered ? '🚨 Real-Time Flood Proximity Warning' : '📍 Continuous Live GPS Safety Tracking Active'}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    liveLocation.proximityAlertTriggered ? 'bg-rose-600 text-white animate-ping' : 'bg-blue-600 text-white'
+                  }`}>
+                    {liveLocation.isGps ? 'Live GPS Active' : 'Monitored Zone'}
+                  </span>
+                </div>
+                <p className="text-xs mt-0.5 text-slate-700 leading-relaxed">
+                  Nearest Monitored Underpass: <strong>{liveLocation.nearestPlaceName}</strong> ({liveLocation.distanceKm} km away) in {liveLocation.city} • Hazard Rating: <strong className={liveLocation.riskLevel === 'Critical' ? 'text-rose-600 font-extrabold' : 'text-amber-600 font-extrabold'}>{liveLocation.riskLevel} Flood Risk</strong>. {liveLocation.advisory}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => checkLiveLocation()}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white hover:bg-slate-50 text-slate-800 border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+                title="Refresh live GPS coordinates and recalculate hazard proximity"
+              >
+                📍 Recalculate GPS
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Quick Safety Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="civic-card p-4 border-l-4 border-l-rose-600">
