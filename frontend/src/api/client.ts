@@ -7,7 +7,9 @@ import {
   CitizenReport,
   MunicipalResponse,
   ActivityLog,
-  SystemSetting
+  SystemSetting,
+  UserSession,
+  RegisterUserData
 } from '../types';
 
 const API_BASE = '/api';
@@ -236,4 +238,38 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ scenario }),
     }),
+
+  // User Authentication & Device Alert Subscription
+  registerUser: (data: RegisterUserData) =>
+    fetchJson<{ status: string; message: string; user: UserSession }>(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  loginUser: (params: { phone?: string; role?: string; preset?: string; name?: string; city?: string; ward_name?: string }) =>
+    fetchJson<{ status: string; message: string; user: UserSession }>(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  getCurrentUser: (phone?: string) =>
+    fetchJson<{ status: string; user: UserSession }>(`${API_BASE}/auth/me${phone ? `?phone=${encodeURIComponent(phone)}` : ''}`),
+
+  updateProfile: (data: Partial<UserSession>) =>
+    fetchJson<{ status: string; message: string; user: UserSession }>(`${API_BASE}/auth/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  getAllUsers: () =>
+    fetchJson<{ users: UserSession[]; count: number }>(`${API_BASE}/users`),
+
+  dispatchUserAlert: (params: { phone: string; name?: string; ward_name?: string; custom_message?: string }) =>
+    fetchJson<{ status: string; alert_code: string; user_name: string; phone: string; ward: string; message: string; channel: string; timestamp: string }>(
+      `${API_BASE}/alerts/dispatch-user`,
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      }
+    ),
 };

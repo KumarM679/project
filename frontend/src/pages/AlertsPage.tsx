@@ -20,12 +20,13 @@ import {
   PlusCircle,
   Volume2,
   VolumeX,
-  Smartphone
+  Smartphone,
+  UserCheck
 } from 'lucide-react';
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 
 export const AlertsPage: React.FC = () => {
-  const { activeCity, refreshTrigger, addToast, triggerRefresh, portal } = useApp();
+  const { activeCity, refreshTrigger, addToast, triggerRefresh, portal, user, setAuthModalOpen } = useApp();
   const [alerts, setAlerts] = useState<FloodAlert[]>([]);
   const [severityFilter, setSeverityFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -232,15 +233,15 @@ export const AlertsPage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-black uppercase tracking-wider text-rose-700">
-                    🚨 Emergency Message Alert Allocated to This Device
+                    🚨 Emergency Alert Allocated to: <strong className="underline decoration-amber-500">{user.name}</strong>
                   </span>
                   <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                    Device Subscribed & Armed
+                    Device: Armed ({user.phone || '+91 98765 43210'})
                   </span>
                 </div>
                 <h4 className="text-base font-extrabold text-slate-900 mt-0.5">
-                  Majestic KSR Railway Underpass — Ward 94 Nowcasting Corridor
+                  {user.ward_name || user.ward || 'Majestic KSR Railway Underpass — Ward 94 Nowcasting Corridor'}
                 </h4>
               </div>
             </div>
@@ -255,7 +256,7 @@ export const AlertsPage: React.FC = () => {
                   } else {
                     setIsSirenActive(true);
                     playDeviceAlertTone('emergency');
-                    addToast('🔊 Maximum-Decibel Emergency Siren Sounding!', 'warning');
+                    addToast(`🔊 Maximum-Decibel Emergency Siren Sounding on ${user.name}'s Device!`, 'warning');
                     setTimeout(() => setIsSirenActive(false), 4500);
                   }
                 }}
@@ -281,21 +282,44 @@ export const AlertsPage: React.FC = () => {
 
               <button
                 onClick={async () => {
+                  const ward = user.ward_name || user.ward || 'Majestic KSR Railway Underpass';
+                  const alertMsg = `🚨 EMERGENCY FLOOD ADVISORY for ${user.name}: Moderate risk at ${ward}. Low spots pooling expected. Ward desilting crew on watch.`;
+
+                  await api.dispatchUserAlert({
+                    phone: user.phone || '+91 98765 43210',
+                    name: user.name,
+                    ward_name: ward,
+                    custom_message: alertMsg
+                  }).catch(() => {});
+
+                  if (user.sound_alerts_enabled !== false) {
+                    playDeviceAlertTone('warning');
+                  }
+
                   const sent = await triggerDeviceNotification(
-                    '🚨 JalDrishti Device Flood Alert',
-                    '🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY: MODERATE RISK: Majestic KSR Railway Underpass — Minor curb pooling expected at low spots.'
+                    `🚨 JalDrishti Device Alert: ${user.name}`,
+                    alertMsg
                   );
                   if (sent) {
-                    addToast('🔔 Device push notification sent', 'success');
+                    addToast(`🔔 Emergency notification dispatched directly to ${user.name} (${user.phone})!`, 'success');
                   } else {
-                    addToast('Allow browser notifications for background device alerts', 'info');
+                    addToast(`Alert sent to ${user.phone}! Allow browser notifications for background popups.`, 'info');
                   }
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-300 transition-colors shadow-xs"
-                title="Send notification to this device"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-teal-600 hover:bg-teal-700 text-white transition-colors shadow-xs"
+                title="Dispatch emergency alert to this device"
               >
-                <BellRing className="w-3.5 h-3.5 text-teal-600" />
-                <span>Send Device Push</span>
+                <BellRing className="w-3.5 h-3.5 text-amber-300" />
+                <span>Dispatch to My Device</span>
+              </button>
+
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition-colors shadow-xs"
+                title="Edit alert subscription profile & registered phone"
+              >
+                <UserCheck className="w-3.5 h-3.5 text-teal-700" />
+                <span>Alert Settings</span>
               </button>
             </div>
           </div>
@@ -303,10 +327,10 @@ export const AlertsPage: React.FC = () => {
           <div className="p-3 rounded-lg bg-slate-900 text-white text-xs space-y-1">
             <span className="text-teal-400 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
               <Radio className="w-3.5 h-3.5 text-rose-400 animate-pulse" />
-              Live EOC Advisory Dispatched to Connected Citizen Devices:
+              Live EOC Advisory Dispatched to {user.name}'s Device:
             </span>
             <p className="text-slate-100 font-semibold leading-relaxed">
-              "🚨 EOC COMMANDER LIVE EMERGENCY ADVISORY: MODERATE RISK: Majestic KSR Railway Underpass — Minor curb pooling expected at low spots. Ward desilting crew on watch."
+              "🚨 <strong>EOC COMMANDER LIVE EMERGENCY ADVISORY:</strong> MODERATE RISK at {user.ward_name || user.ward || 'Majestic KSR Railway Underpass'} — Minor curb pooling expected at low spots. Ward desilting crew on watch. Maintain 20 km/h crawl speed."
             </p>
           </div>
         </div>

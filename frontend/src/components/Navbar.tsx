@@ -7,7 +7,9 @@ import {
   BellRing,
   Layers,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  User,
+  LogIn
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -19,7 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onOpenDrainageModal,
 }) => {
-  const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal } = useApp();
+  const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal, user, setAuthModalOpen } = useApp();
   const [isApplyingScenario, setIsApplyingScenario] = useState(false);
   const [isEvaluatingAlerts, setIsEvaluatingAlerts] = useState(false);
 
@@ -177,6 +179,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Layers className="w-3.5 h-3.5 text-teal-400" />
             <span>+ Update Drain</span>
+          </button>
+
+          {/* User Account & Alert Subscription Pill */}
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition-colors shadow-xs"
+            title="Manage alert subscription profile & device credentials"
+          >
+            <div className={`w-2 h-2 rounded-full ${user.role === 'citizen' ? 'bg-blue-600' : 'bg-emerald-600'} animate-pulse`} />
+            <span className="truncate max-w-[120px] font-extrabold">{user.name}</span>
+            <span className="text-[10px] text-slate-500 hidden md:inline">({user.role === 'citizen' ? 'Citizen' : 'Officer'})</span>
           </button>
 
           {/* Refresh Data */}

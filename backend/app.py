@@ -50,6 +50,51 @@ def log_activity(event_type, actor, role, description, metadata=None):
     except Exception as e:
         print(f"Error logging activity: {e}")
 
+def init_users_table():
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL UNIQUE,
+            email TEXT,
+            password_hash TEXT DEFAULT 'preset',
+            role TEXT NOT NULL DEFAULT 'citizen',
+            city TEXT NOT NULL DEFAULT 'Bengaluru',
+            ward_name TEXT DEFAULT 'Majestic & Gandhinagar (Ward 94)',
+            street_id INTEGER,
+            alerts_enabled INTEGER DEFAULT 1,
+            sound_alerts_enabled INTEGER DEFAULT 1,
+            sms_alerts_enabled INTEGER DEFAULT 1,
+            badge_number TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_users_city_ward ON users(city, ward_name)')
+
+        c.execute('SELECT COUNT(*) FROM users')
+        if c.fetchone()[0] == 0:
+            seed_users = [
+                ('Ananya Rao (Citizen)', '+91 98765 43210', 'ananya.rao@gmail.com', 'citizen', 'Bengaluru', 'Majestic & Gandhinagar (Ward 94)', 1, 1, 1, 1, 'CITIZEN-KA-01'),
+                ('Commander R. Sharma', '+91 98000 00001', 'r.sharma@eoc.gov.in', 'eoc_chief', 'Bengaluru', 'Central Command EOC', None, 1, 1, 1, 'NDMA-KA-092'),
+                ('Er. Praveen Kumar', '+91 98000 00002', 'praveen.k@bbmp.gov.in', 'ward_engineer', 'Bengaluru', 'BTM Layout & Silk Board', 2, 1, 1, 1, 'BBMP-EE-104'),
+                ('System Admin', '+91 98000 00000', 'admin@jaldrishti.local', 'admin', 'All Cities', 'Headquarters', None, 1, 1, 1, 'SYS-ROOT-01'),
+            ]
+            c.executemany('''
+            INSERT INTO users (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', seed_users)
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing users table: {e}")
+
+init_users_table()
+
 # --- HEALTH ---
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -651,6 +696,234 @@ def broadcast_alert_to_public():
             'alert_code': alert_code,
             'id': new_id
         }), 201
+
+# --- AUTHENTICATION & USER ALERT SUBSCRIPTION ROUTES ---
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    data = request.get_json(silent=True) or {}
+    name = (data.get('name') or '').strip()
+    phone = (data.get('phone') or '').strip()
+    email = (data.get('email') or '').strip()
+    role = data.get('role', 'citizen')
+    city = data.get('city', 'Bengaluru')
+    ward_name = data.get('ward_name', 'Majestic & Gandhinagar (Ward 94)')
+    street_id = data.get('street_id', 1)
+    alerts_enabled = 1 if data.get('alerts_enabled', True) else 0
+    sound_alerts_enabled = 1 if data.get('sound_alerts_enabled', True) else 0
+    sms_alerts_enabled = 1 if data.get('sms_alerts_enabled', True) else 0
+
+    if not name:
+        return jsonify({'error': 'Full name is required'}), 400
+    if not phone:
+        return jsonify({'error': 'Mobile phone number is required to receive flood alerts'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute('''
+        UPDATE users
+        SET name = ?, email = COALESCE(?, email), city = ?, ward_name = ?, street_id = ?,
+            role = ?, alerts_enabled = ?, sound_alerts_enabled = ?, sms_alerts_enabled = ?,
+            last_login = CURRENT_TIMESTAMP
+        WHERE phone = ?
+        ''', (name, email, city, ward_name, street_id, role, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, phone))
+        user_id = existing['id']
+    else:
+        badge = f"CITIZEN-{city[:2].upper()}-{phone[-4:]}" if role == 'citizen' else f"OFFICER-{city[:2].upper()}-99"
+        cursor.execute('''
+        INSERT INTO users (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge))
+        user_id = cursor.lastrowid
+
+    conn.commit()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = dict(cursor.fetchone())
+    conn.close()
+
+    log_activity(
+        'USER_REGISTERED',
+        name,
+        role,
+        f"User registered/subscribed for civic flood alerts in {city} / {ward_name} (Phone: {phone})"
+    )
+
+    return jsonify({
+        'status': 'success',
+        'message': f"Welcome, {name}! Your device ({phone}) is successfully registered for flood alerts.",
+        'user': user
+    }), 201
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    data = request.get_json(silent=True) or {}
+    phone = (data.get('phone') or '').strip()
+    preset = data.get('preset')
+    role = data.get('role')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    user = None
+    if preset == 'citizen':
+        cursor.execute("SELECT * FROM users WHERE role = 'citizen' ORDER BY id ASC LIMIT 1")
+        user = cursor.fetchone()
+    elif preset in ['eoc_chief', 'ward_engineer', 'admin']:
+        cursor.execute("SELECT * FROM users WHERE role = ? LIMIT 1", (preset,))
+        user = cursor.fetchone()
+    elif phone:
+        cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+        user = cursor.fetchone()
+        if not user:
+            name = data.get('name') or f"Citizen ({phone[-4:]})"
+            city = data.get('city') or 'Bengaluru'
+            ward = data.get('ward_name') or 'Majestic & Gandhinagar (Ward 94)'
+            cursor.execute('''
+            INSERT INTO users (name, phone, role, city, ward_name)
+            VALUES (?, ?, 'citizen', ?, ?)
+            ''', (name, phone, city, ward))
+            conn.commit()
+            cursor.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,))
+            user = cursor.fetchone()
+    elif role:
+        cursor.execute("SELECT * FROM users WHERE role = ? LIMIT 1", (role,))
+        user = cursor.fetchone()
+
+    if not user:
+        cursor.execute("SELECT * FROM users ORDER BY id ASC LIMIT 1")
+        user = cursor.fetchone()
+
+    user_dict = dict(user) if user else {
+        'id': 1, 'name': 'Public Citizen', 'phone': '+91 98765 43210',
+        'role': 'citizen', 'city': 'Bengaluru', 'ward_name': 'Majestic Ward 94'
+    }
+
+    if user:
+        cursor.execute("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?", (user['id'],))
+        conn.commit()
+    conn.close()
+
+    log_activity(
+        'USER_LOGIN',
+        user_dict['name'],
+        user_dict['role'],
+        f"User logged in ({user_dict.get('phone', 'N/A')})"
+    )
+
+    return jsonify({
+        'status': 'success',
+        'message': f"Authenticated successfully as {user_dict['name']}",
+        'user': user_dict
+    })
+
+@app.route('/api/auth/me', methods=['GET'])
+def get_current_user():
+    phone = request.args.get('phone')
+    user_id = request.args.get('id')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    if user_id:
+        cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    elif phone:
+        cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+    else:
+        cursor.execute("SELECT * FROM users ORDER BY last_login DESC LIMIT 1")
+    user = cursor.fetchone()
+    conn.close()
+
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    return jsonify({'status': 'success', 'user': dict(user)})
+
+@app.route('/api/auth/profile', methods=['PUT'])
+def update_profile():
+    data = request.get_json(silent=True) or {}
+    user_id = data.get('id')
+    phone = data.get('phone')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if not user_id and not phone:
+        conn.close()
+        return jsonify({'error': 'User id or phone is required'}), 400
+
+    cursor.execute('''
+    UPDATE users
+    SET name = COALESCE(?, name),
+        email = COALESCE(?, email),
+        city = COALESCE(?, city),
+        ward_name = COALESCE(?, ward_name),
+        alerts_enabled = COALESCE(?, alerts_enabled),
+        sound_alerts_enabled = COALESCE(?, sound_alerts_enabled),
+        sms_alerts_enabled = COALESCE(?, sms_alerts_enabled)
+    WHERE id = ? OR phone = ?
+    ''', (
+        data.get('name'), data.get('email'), data.get('city'), data.get('ward_name'),
+        data.get('alerts_enabled'), data.get('sound_alerts_enabled'), data.get('sms_alerts_enabled'),
+        user_id, phone
+    ))
+    conn.commit()
+
+    cursor.execute("SELECT * FROM users WHERE id = ? OR phone = ?", (user_id, phone))
+    updated = cursor.fetchone()
+    conn.close()
+
+    return jsonify({
+        'status': 'success',
+        'message': 'Profile and alert preferences updated.',
+        'user': dict(updated) if updated else {}
+    })
+
+@app.route('/api/users', methods=['GET'])
+def get_all_users():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, phone, email, role, city, ward_name, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number, last_login, created_at FROM users ORDER BY id ASC")
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return jsonify({'users': users, 'count': len(users)})
+
+@app.route('/api/alerts/dispatch-user', methods=['POST'])
+def dispatch_personalized_alert():
+    data = request.get_json(silent=True) or {}
+    user_phone = data.get('phone')
+    user_name = data.get('name', 'Resident')
+    ward_name = data.get('ward_name', 'Monitored Ward')
+    custom_msg = data.get('custom_message')
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM flood_alerts WHERE status IN ('Active', 'Broadcasted to Citizens') ORDER BY id DESC LIMIT 1")
+    latest_alert = cursor.fetchone()
+    conn.close()
+
+    alert_text = custom_msg or (latest_alert['message'] if latest_alert else 'Moderate pooling expected at low spots. Proceed with caution.')
+    alert_code = latest_alert['alert_code'] if latest_alert else 'DISPATCH-LIVE-01'
+
+    log_activity(
+        'ALERT_DISPATCHED_TO_USER',
+        user_name,
+        'Citizen Subscriber',
+        f"Dispatched direct alert ({alert_code}) to device {user_phone}: {alert_text[:60]}..."
+    )
+
+    return jsonify({
+        'status': 'dispatched',
+        'alert_code': alert_code,
+        'user_name': user_name,
+        'phone': user_phone,
+        'ward': ward_name,
+        'message': alert_text,
+        'channel': 'Cell Broadcast, Web Audio Siren & Device Push',
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
 
 # --- CITIZEN CROWDSOURCED REPORTS ---
 @app.route('/api/citizen-reports', methods=['GET'])

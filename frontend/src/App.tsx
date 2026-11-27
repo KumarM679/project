@@ -7,6 +7,7 @@ import { Navbar } from './components/Navbar';
 import { ToastContainer } from './components/ToastContainer';
 import { DrainageModal } from './components/DrainageModal';
 import { DeviceAlertBanner } from './components/DeviceAlertBanner';
+import { AuthModal } from './components/AuthModal';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -18,9 +19,10 @@ import { AlertsPage } from './pages/AlertsPage';
 import { MunicipalResponsePage } from './pages/MunicipalResponsePage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { PublicPortalPage } from './pages/PublicPortalPage';
+import { LoginPage } from './pages/LoginPage';
 
 export const App: React.FC = () => {
-  const { activeCity, refreshTrigger, triggerRefresh, portal, setPortal } = useApp();
+  const { activeCity, refreshTrigger, triggerRefresh, portal, setPortal, isAuthModalOpen, setAuthModalOpen } = useApp();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
   const [streetsList, setStreetsList] = useState<Street[]>([]);
@@ -139,6 +141,13 @@ export const App: React.FC = () => {
           )}
 
           {currentTab === 'analytics' && <AnalyticsPage />}
+
+          {currentTab === 'login' && (
+            <LoginPage
+              onSuccess={() => handleNavigate('dashboard')}
+              onBack={() => handleNavigate('dashboard')}
+            />
+          )}
         </main>
       </div>
 
@@ -152,6 +161,12 @@ export const App: React.FC = () => {
         onSuccess={triggerRefresh}
         editRecord={editDrainageRecord}
         streetsList={streetsList}
+      />
+
+      {/* User Login & Alert Subscription Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setAuthModalOpen(false)}
       />
     </div>
   );

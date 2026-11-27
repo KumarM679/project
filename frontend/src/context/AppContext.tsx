@@ -15,6 +15,10 @@ interface AppContextType {
   setActiveCity: (city: string) => void;
   user: UserSession;
   setUserRole: (role: UserRole) => void;
+  loginUserSession: (userData: UserSession) => void;
+  logoutUserSession: () => void;
+  isAuthModalOpen: boolean;
+  setAuthModalOpen: (open: boolean) => void;
   scenario: string;
   setScenario: (sc: string) => void;
   refreshTrigger: number;
@@ -25,42 +29,113 @@ interface AppContextType {
 }
 
 const defaultUser: UserSession = {
+  id: 2,
   role: 'eoc_chief',
   name: 'Commander R. Sharma',
+  phone: '+91 98000 00001',
+  email: 'r.sharma@eoc.gov.in',
   city: 'Bengaluru',
   ward: 'Central Command EOC',
-  badgeNumber: 'NDMA-KA-092'
+  ward_name: 'Central Command EOC',
+  badgeNumber: 'NDMA-KA-092',
+  alerts_enabled: true,
+  sound_alerts_enabled: true,
+  sms_alerts_enabled: true,
+  isLoggedIn: true
 };
 
 const citizenUser: UserSession = {
+  id: 1,
   role: 'citizen',
-  name: 'Public Citizen / Commuter',
+  name: 'Ananya Rao',
+  phone: '+91 98765 43210',
+  email: 'ananya.rao@gmail.com',
   city: 'Bengaluru',
-  ward: 'Citywide Monitored Wards',
-  badgeNumber: 'CITIZEN-PORTAL'
+  ward: 'Majestic & Gandhinagar (Ward 94)',
+  ward_name: 'Majestic & Gandhinagar (Ward 94)',
+  street_id: 1,
+  badgeNumber: 'CITIZEN-KA-01',
+  alerts_enabled: true,
+  sound_alerts_enabled: true,
+  sms_alerts_enabled: true,
+  isLoggedIn: true
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [portal, setPortalState] = useState<'eoc' | 'public'>(() => {
-    return (localStorage.getItem('jaldrishti_portal') as 'eoc' | 'public') || 'eoc';
+    return (localStorage.getItem('jaldrishti_portal') as 'eoc' | 'public') || 'public';
   });
   const [activeCity, setActiveCity] = useState<string>('All Cities');
+  const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
+
+  const [user, setUser] = useState<UserSession>(() => {
+    try {
+      const savedUser = localStorage.getItem('jaldrishti_user');
+      if (savedUser) {
+        return JSON.parse(savedUser);
+      }
+    } catch {}
+    const savedPortal = localStorage.getItem('jaldrishti_portal');
+    return savedPortal === 'eoc' ? defaultUser : citizenUser;
+  });
 
   const setPortal = (p: 'eoc' | 'public') => {
     setPortalState(p);
     localStorage.setItem('jaldrishti_portal', p);
     if (p === 'public') {
-      setUser(citizenUser);
+      if (user.role !== 'citizen') {
+        const citizenProfile: UserSession = {
+          ...citizenUser,
+          isLoggedIn: user.isLoggedIn
+        };
+        setUser(citizenProfile);
+        localStorage.setItem('jaldrishti_user', JSON.stringify(citizenProfile));
+      }
     } else {
-      setUser(defaultUser);
+      if (user.role === 'citizen') {
+        const commanderProfile: UserSession = {
+          ...defaultUser,
+          isLoggedIn: user.isLoggedIn
+        };
+        setUser(commanderProfile);
+        localStorage.setItem('jaldrishti_user', JSON.stringify(commanderProfile));
+      }
     }
   };
-  const [user, setUser] = useState<UserSession>(() => {
-    const savedPortal = localStorage.getItem('jaldrishti_portal');
-    return savedPortal === 'public' ? citizenUser : defaultUser;
-  });
+
+  const loginUserSession = (userData: UserSession) => {
+    const updated: UserSession = {
+      ...userData,
+      isLoggedIn: true
+    };
+    setUser(updated);
+    localStorage.setItem('jaldrishti_user', JSON.stringify(updated));
+    if (userData.role === 'citizen') {
+      setPortalState('public');
+      localStorage.setItem('jaldrishti_portal', 'public');
+    } else {
+      setPortalState('eoc');
+      localStorage.setItem('jaldrishti_portal', 'eoc');
+    }
+    if (userData.city && userData.city !== 'All Cities') {
+      setActiveCity(userData.city);
+    }
+    addToast(`Signed in successfully as ${userData.name}`, 'success');
+  };
+
+  const logoutUserSession = () => {
+    const guestUser: UserSession = {
+      ...citizenUser,
+      name: 'Public Resident (Guest)',
+      phone: '',
+      isLoggedIn: false
+    };
+    setUser(guestUser);
+    localStorage.removeItem('jaldrishti_user');
+    addToast('Signed out of citizen session.', 'info');
+  };
   const [scenario, setScenario] = useState<string>('monsoon_heavy');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [notifications, setNotifications] = useState<ToastMessage[]>([
@@ -127,6 +202,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveCity,
         user,
         setUserRole,
+        loginUserSession,
+        logoutUserSession,
+        isAuthModalOpen,
+        setAuthModalOpen,
         scenario,
         setScenario,
         refreshTrigger,

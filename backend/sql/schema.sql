@@ -158,3 +158,26 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 9. Registered Users & Citizen Alert Subscribers Table
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL UNIQUE,
+    email TEXT,
+    password_hash TEXT DEFAULT 'preset',
+    role TEXT NOT NULL DEFAULT 'citizen', -- 'citizen', 'eoc_chief', 'ward_engineer', 'admin'
+    city TEXT NOT NULL DEFAULT 'Bengaluru',
+    ward_name TEXT DEFAULT 'Majestic & Gandhinagar (Ward 94)',
+    street_id INTEGER,
+    alerts_enabled INTEGER DEFAULT 1,
+    sound_alerts_enabled INTEGER DEFAULT 1,
+    sms_alerts_enabled INTEGER DEFAULT 1,
+    badge_number TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_city_ward ON users(city, ward_name);
+
+

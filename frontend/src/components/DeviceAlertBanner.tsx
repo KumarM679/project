@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { api } from '../api/client';
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 import {
   Radio,
@@ -11,7 +12,9 @@ import {
   ChevronUp,
   MapPin,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  UserCheck,
+  Send
 } from 'lucide-react';
 
 interface DeviceAlertBannerProps {
@@ -19,19 +22,21 @@ interface DeviceAlertBannerProps {
 }
 
 export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate }) => {
-  const { portal, addToast } = useApp();
+  const { portal, addToast, user, setAuthModalOpen } = useApp();
   const [isMinimized, setIsMinimized] = useState(false);
   const [hasPlayedInitial, setHasPlayedInitial] = useState(false);
   const [isSounding, setIsSounding] = useState(false);
+  const [isDispatching, setIsDispatching] = useState(false);
 
   // Play a subtle civic chime when public user view is first opened
   useEffect(() => {
     if (portal === 'public' && !hasPlayedInitial) {
       setHasPlayedInitial(true);
-      // Play brief audible chime
-      playDeviceAlertTone('chime');
+      if (user.sound_alerts_enabled !== false) {
+        playDeviceAlertTone('chime');
+      }
     }
-  }, [portal, hasPlayedInitial]);
+  }, [portal, hasPlayedInitial, user.sound_alerts_enabled]);
 
   if (portal !== 'public') {
     return null;
@@ -45,20 +50,46 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
     } else {
       setIsSounding(true);
       playDeviceAlertTone('emergency');
-      addToast('🔊 Maximum-Decibel Emergency Siren Sounding!', 'warning');
+      addToast(`🔊 Maximum-Decibel Emergency Siren Sounding on ${user.name}'s Device!`, 'warning');
       setTimeout(() => setIsSounding(false), 4500);
     }
   };
 
   const handleSendNotification = async () => {
-    const success = await triggerDeviceNotification(
-      '🚨 JalDrishti Device Alert: Majestic KSR Underpass',
-      'MODERATE RISK: Minor curb pooling expected at low spots. Ward desilting crew on watch. Crawl speed 20 km/h.'
-    );
-    if (success) {
-      addToast('🔔 Device push notification sent successfully', 'success');
-    } else {
-      addToast('Please allow browser notifications to receive background alerts on this device', 'info');
+    setIsDispatching(true);
+    const wardName = user.ward_name || user.ward || 'Majestic & Gandhinagar (Ward 94)';
+    const phone = user.phone || '+91 98765 43210';
+    const alertMsg = `🚨 EMERGENCY FLOOD ALERT for ${user.name}: Critical pooling at ${wardName}. Desilting team active. Maintain 20 km/h crawl speed.`;
+
+    try {
+      // 1. Dispatch through backend API for logging and cell subscriber queue
+      await api.dispatchUserAlert({
+        phone,
+        name: user.name,
+        ward_name: wardName,
+        custom_message: alertMsg
+      }).catch(err => console.warn('Backend dispatch log:', err));
+
+      // 2. Audible tone if enabled
+      if (user.sound_alerts_enabled !== false) {
+        playDeviceAlertTone('warning');
+      }
+
+      // 3. Trigger native browser push notification
+      const success = await triggerDeviceNotification(
+        `🚨 JalDrishti Device Alert: ${user.name}`,
+        alertMsg
+      );
+
+      if (success) {
+        addToast(`🔔 Emergency Alert dispatched directly to ${user.name} (${phone})!`, 'success');
+      } else {
+        addToast(`Alert sent to ${phone}! Allow browser notifications for background popups.`, 'info');
+      }
+    } catch (err: any) {
+      addToast(`Dispatch issue: ${err.message}`, 'error');
+    } finally {
+      setIsDispatching(false);
     }
   };
 
@@ -75,16 +106,16 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-black uppercase tracking-wider bg-rose-500/40 border border-rose-300/40 px-2 py-0.5 rounded text-rose-100 flex items-center gap-1">
                 <Smartphone className="w-3 h-3 text-amber-300" />
-                Alert Allocated to This Device
+                Alert Allocated to: <strong className="text-white underline decoration-amber-400">{user.name}</strong>
               </span>
 
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                This Device: Connected & Armed
+                Device: Armed ({user.phone || '+91 98765 43210'})
               </span>
 
               <span className="text-xs font-bold text-amber-200 truncate hidden md:inline">
-                Majestic KSR Railway Underpass (Bengaluru)
+                {user.ward_name || user.ward || 'Majestic KSR Railway Underpass'}
               </span>
             </div>
           </div>
@@ -115,16 +146,27 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
 
             <button
               onClick={handleSendNotification}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-white/15 hover:bg-white/25 text-white border border-white/20 shadow-xs transition-transform active:scale-95"
-              title="Trigger browser push notification on this device"
+              disabled={isDispatching}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-white/20 hover:bg-white/30 text-white border border-white/30 shadow-xs transition-transform active:scale-95"
+              title="Dispatch emergency alert directly to this subscriber device"
             >
-              <BellRing className="w-3.5 h-3.5 text-teal-300" />
+              <BellRing className="w-3.5 h-3.5 text-amber-300" />
               <span className="hidden sm:inline">Push Alert</span>
             </button>
 
             <button
+              onClick={() => setAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-bold bg-rose-700/60 hover:bg-rose-700 text-rose-100 border border-rose-400/40 shadow-xs transition-colors"
+              title="Edit alert subscription profile & phone number"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
+              <span className="hidden md:inline">Alert Profile</span>
+            </button>
+
+            <button
               onClick={() => onNavigate('alerts')}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-xs transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-xs transition-colors"
+              title="View all municipal flood risk advisories"
             >
               <span className="hidden sm:inline">Details</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -146,10 +188,10 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
             <div className="bg-black/30 p-2.5 rounded-lg border border-white/10 space-y-1">
               <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3 text-amber-400" />
-                Live Message Alert Allocated to This Device:
+                Live Message Alert Allocated to {user.name} ({user.phone || 'This Device'}):
               </span>
               <p className="text-white font-medium leading-snug">
-                🚨 <strong>EOC COMMANDER LIVE EMERGENCY ADVISORY:</strong> MODERATE RISK: Majestic KSR Railway Underpass — Minor curb pooling expected at low spots. Ward desilting crew on watch.
+                🚨 <strong>EOC COMMANDER LIVE EMERGENCY ADVISORY:</strong> MODERATE RISK at {user.ward_name || user.ward || 'Majestic KSR Railway Underpass'} — Minor curb pooling expected at low spots. Ward desilting crew on watch.
               </p>
             </div>
 
@@ -159,7 +201,7 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                 Recommended Commuter Action & Detour:
               </span>
               <p className="text-emerald-100 font-medium leading-snug">
-                Maintain 20 km/h crawl speed. Avoid curbside pooling near Majestic platform 1 exit. Take Anand Rao Circle flyover if water accumulates.
+                Maintain 20 km/h crawl speed. Avoid curbside pooling near {user.ward_name ? user.ward_name.split('(')[0] : 'Majestic'} low points. Take elevated corridors if storm water accumulates.
               </p>
             </div>
           </div>

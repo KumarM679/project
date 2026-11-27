@@ -12,7 +12,9 @@ import {
   ShieldCheck,
   Building2,
   AlertOctagon,
-  Users
+  Users,
+  Smartphone,
+  UserCheck
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -27,7 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setCurrentTab,
   activeAlertsCount,
 }) => {
-  const { activeCity, setActiveCity, user, setUserRole, portal, setPortal } = useApp();
+  const { activeCity, setActiveCity, user, setUserRole, portal, setPortal, setAuthModalOpen } = useApp();
 
   const cities = ['All Cities', 'Bengaluru', 'Hyderabad', 'Chennai', 'Pune', 'Vijayawada', 'Mysuru'];
 
@@ -40,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'alerts', label: 'Flood Risk Alerts', icon: Bell, badge: activeAlertsCount > 0 ? activeAlertsCount : undefined },
     { id: 'municipal-response', label: 'Municipal Response', icon: Truck },
     { id: 'analytics', label: 'Analytics & Trends', icon: BarChart3 },
+    { id: 'login', label: 'Citizen Alert Login', icon: UserCheck },
   ];
 
   return (
@@ -137,6 +140,36 @@ export const Sidebar: React.FC<SidebarProps> = ({
           );
         })}
       </nav>
+
+      {/* Citizen Alert Subscriber Profile - rendered in Public User mode */}
+      {portal === 'public' && (
+        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-900/90 border border-slate-800 shadow-sm">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1">
+              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+              Alert Subscriber
+            </span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono flex items-center gap-1 border border-emerald-500/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Connected
+            </span>
+          </div>
+
+          <div className="text-xs font-bold text-white truncate">{user.name}</div>
+          <div className="text-[11px] text-slate-400 font-mono">{user.phone || '+91 98765 43210'}</div>
+          <div className="text-[10px] text-teal-400 mt-0.5 truncate font-medium">
+            {user.ward_name || user.ward || 'Majestic & Gandhinagar (Ward 94)'}
+          </div>
+
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 hover:text-white border border-teal-500/30 text-[11px] font-bold transition-all shadow-xs"
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>Alert Profile & Settings</span>
+          </button>
+        </div>
+      )}
 
       {/* Role Switcher - only rendered in EOC Command mode, removed in Public User mode */}
       {portal === 'eoc' && (

@@ -184,9 +184,33 @@ export interface DashboardStats {
 export type UserRole = 'citizen' | 'ward_engineer' | 'eoc_chief' | 'admin';
 
 export interface UserSession {
+  id?: number;
   role: UserRole;
   name: string;
+  phone?: string;
+  email?: string;
   city: string;
   ward?: string;
+  ward_name?: string;
+  street_id?: number;
   badgeNumber?: string;
+  badge_number?: string;
+  alerts_enabled?: boolean | number;
+  sound_alerts_enabled?: boolean | number;
+  sms_alerts_enabled?: boolean | number;
+  last_login?: string;
+  isLoggedIn?: boolean;
+}
+
+export interface RegisterUserData {
+  name: string;
+  phone: string;
+  email?: string;
+  role?: UserRole;
+  city: string;
+  ward_name?: string;
+  street_id?: number;
+  alerts_enabled?: boolean;
+  sound_alerts_enabled?: boolean;
+  sms_alerts_enabled?: boolean;
 }
