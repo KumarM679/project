@@ -368,7 +368,7 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
 
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Armed: {user.phone || '+91 98765 43210'}
+                Armed: {user.phone || '+91 98765 43210'}{user.house_no ? ` • ${user.house_no}` : ''}{user.ward_no ? ` (${user.ward_no})` : ''}{user.district ? ` • ${user.district}` : ''}{user.pincode ? ` [PIN: ${user.pincode}]` : ''}
               </span>
             </div>
           </div>

@@ -157,8 +157,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="text-xs font-bold text-white truncate">{user.name}</div>
           <div className="text-[11px] text-slate-400 font-mono">{user.phone || '+91 98765 43210'}</div>
+          {user.house_no && (
+            <div className="text-[10px] text-slate-300 truncate">
+              {user.house_no}{user.ward_no ? ` (${user.ward_no})` : ''}
+            </div>
+          )}
           <div className="text-[10px] text-teal-400 mt-0.5 truncate font-medium">
-            {user.ward_name || user.ward || 'Majestic & Gandhinagar (Ward 94)'}
+            {user.ward_name || user.ward || 'BB Road - Shidlaghatta Circle Underpass Sump'} • {user.district || user.city}
           </div>
 
           <div className="mt-2.5 flex items-center gap-1.5">

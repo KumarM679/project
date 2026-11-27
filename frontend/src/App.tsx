@@ -84,16 +84,23 @@ export const App: React.FC = () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           onBack={() => {
-            // Guest mode entry
+            // Guest mode entry with full location defaults
             loginUserSession({
               id: 1,
               role: 'citizen',
               name: 'Public Resident (Guest)',
-              phone: '+91 98765 43210',
+              phone: '+91 94480 55501',
               email: 'guest@jaldrishti.gov.in',
-              city: activeCity === 'All Cities' ? 'Bengaluru' : activeCity,
-              ward: 'Majestic & Gandhinagar (Ward 94)',
-              ward_name: 'Majestic & Gandhinagar (Ward 94)',
+              state: 'Karnataka',
+              district: 'Chikkaballapur',
+              city: activeCity === 'All Cities' ? 'Chikkaballapur' : activeCity,
+              ward: 'Ward 12',
+              ward_no: 'Ward 12',
+              ward_name: 'BB Road - Shidlaghatta Circle Underpass Sump',
+              house_no: '#14 Main Road',
+              pincode: '562101',
+              address: 'Near Shidlaghatta Circle Underpass',
+              nearest_spot: 'BB Road - Shidlaghatta Circle Underpass Sump',
               alerts_enabled: true,
               sound_alerts_enabled: true,
               sms_alerts_enabled: true,

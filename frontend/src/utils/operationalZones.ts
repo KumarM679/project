@@ -418,3 +418,117 @@ export function findNearestMonitoredPlace(
 
   return { place: closest, distanceKm: minDistance };
 }
+
+export interface ZoneLocationMetadata {
+  state: string;
+  district: string;
+  defaultPincode: string;
+  defaultWardNo: string;
+  wards: { wardNo: string; wardName: string }[];
+}
+
+export const ZONE_LOCATION_METADATA: Record<string, ZoneLocationMetadata> = {
+  Chikkaballapur: {
+    state: 'Karnataka',
+    district: 'Chikkaballapur',
+    defaultPincode: '562101',
+    defaultWardNo: 'Ward 12',
+    wards: [
+      { wardNo: 'Ward 12', wardName: 'Shidlaghatta Circle' },
+      { wardNo: 'Ward 05', wardName: 'Central Town' },
+      { wardNo: 'Ward 08', wardName: 'Kandavara' },
+      { wardNo: 'Ward 03', wardName: 'Prashanth Nagar' },
+    ]
+  },
+  Bengaluru: {
+    state: 'Karnataka',
+    district: 'Bengaluru Urban',
+    defaultPincode: '560068',
+    defaultWardNo: 'Ward 176',
+    wards: [
+      { wardNo: 'Ward 176', wardName: 'BTM Layout' },
+      { wardNo: 'Ward 150', wardName: 'Bellandur' },
+      { wardNo: 'Ward 023', wardName: 'Nagavara' },
+      { wardNo: 'Ward 117', wardName: 'Shantinagar' },
+      { wardNo: 'Ward 111', wardName: 'Shanthala Nagar' },
+      { wardNo: 'Ward 151', wardName: 'Koramangala' },
+      { wardNo: 'Ward 148', wardName: 'Ejipura' },
+      { wardNo: 'Ward 007', wardName: 'Hebbal' },
+      { wardNo: 'Ward 094', wardName: 'Gandhinagar / Majestic' },
+      { wardNo: 'Ward 112', wardName: 'Indiranagar' },
+    ]
+  },
+  Hyderabad: {
+    state: 'Telangana',
+    district: 'Hyderabad',
+    defaultPincode: '500081',
+    defaultWardNo: 'Circle 20',
+    wards: [
+      { wardNo: 'Circle 20', wardName: 'Madhapur' },
+      { wardNo: 'Circle 13', wardName: 'Tolichowki' },
+      { wardNo: 'Circle 18', wardName: 'Begumpet' },
+      { wardNo: 'Circle 19', wardName: 'Gachibowli' },
+    ]
+  },
+  Chennai: {
+    state: 'Tamil Nadu',
+    district: 'Chennai',
+    defaultPincode: '600042',
+    defaultWardNo: 'Zone 13',
+    wards: [
+      { wardNo: 'Zone 13', wardName: 'Velachery' },
+      { wardNo: 'Zone 10', wardName: 'T. Nagar' },
+      { wardNo: 'Zone 08', wardName: 'Koyambedu' },
+      { wardNo: 'Zone 14', wardName: 'Madipakkam' },
+    ]
+  },
+  Pune: {
+    state: 'Maharashtra',
+    district: 'Pune',
+    defaultPincode: '411005',
+    defaultWardNo: 'Prabhag 07',
+    wards: [
+      { wardNo: 'Prabhag 07', wardName: 'Shivajinagar' },
+      { wardNo: 'Prabhag 19', wardName: 'Swargate' },
+      { wardNo: 'Prabhag 02', wardName: 'Hinjewadi' },
+    ]
+  },
+  Vijayawada: {
+    state: 'Andhra Pradesh',
+    district: 'NTR / Krishna',
+    defaultPincode: '520010',
+    defaultWardNo: 'Ward 12',
+    wards: [
+      { wardNo: 'Ward 12', wardName: 'Benz Circle' },
+      { wardNo: 'Ward 08', wardName: 'Governorpet' },
+      { wardNo: 'Ward 03', wardName: 'One Town' },
+    ]
+  },
+  Mysuru: {
+    state: 'Karnataka',
+    district: 'Mysuru',
+    defaultPincode: '570001',
+    defaultWardNo: 'Ward 22',
+    wards: [
+      { wardNo: 'Ward 22', wardName: 'Mandi Mohalla' },
+      { wardNo: 'Ward 25', wardName: 'Subbarayanakere' },
+      { wardNo: 'Ward 48', wardName: 'Kuvempunagar' },
+    ]
+  }
+};
+
+export const INDIAN_STATES = [
+  'Karnataka',
+  'Andhra Pradesh',
+  'Telangana',
+  'Tamil Nadu',
+  'Maharashtra',
+  'Kerala',
+  'Goa',
+  'Gujarat',
+  'Delhi',
+  'Rajasthan',
+  'Uttar Pradesh',
+  'West Bengal'
+];
+

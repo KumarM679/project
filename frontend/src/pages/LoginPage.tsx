@@ -5,7 +5,9 @@ import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAl
 import {
   OPERATIONAL_ZONES,
   getPlacesForZone,
-  findNearestMonitoredPlace
+  findNearestMonitoredPlace,
+  ZONE_LOCATION_METADATA,
+  INDIAN_STATES
 } from '../utils/operationalZones';
 import {
   User,
@@ -21,7 +23,15 @@ import {
   Sparkles,
   ArrowLeft,
   Crosshair,
-  Loader2
+  Loader2,
+  Lock,
+  Eye,
+  EyeOff,
+  Home,
+  CheckCircle2,
+  KeyRound,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -32,26 +42,56 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
   const { user, loginUserSession, addToast, checkLiveLocation } = useApp();
 
-  const [name, setName] = useState(user.name !== 'Public Resident / Commuter' && user.name !== 'Public Resident (Guest)' ? user.name : '');
+  // Mode: 'signin' (Log In) vs 'signup' (Register with full location)
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+
+  // Sign In State
+  const [loginIdentifier, setLoginIdentifier] = useState(user.phone || '');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Sign Up / Registration State
+  const [name, setName] = useState(
+    user.name !== 'Public Resident / Commuter' && user.name !== 'Public Resident (Guest)' ? user.name : ''
+  );
   const [phone, setPhone] = useState(user.phone || '');
   const [email, setEmail] = useState(user.email || '');
-  const [city, setCity] = useState(user.city || 'Bengaluru');
-  const [wardName, setWardName] = useState(user.ward || 'Silk Board Junction Low-Lying Underpass');
+  const [password, setPassword] = useState('');
+
+  // Detailed Location State
+  const [city, setCity] = useState(user.city || 'Chikkaballapur');
+  const [state, setState] = useState(user.state || 'Karnataka');
+  const [district, setDistrict] = useState(user.district || 'Chikkaballapur');
+  const [wardNo, setWardNo] = useState(user.ward_no || 'Ward 12');
+  const [wardName, setWardName] = useState(user.ward_name || 'BB Road - Shidlaghatta Circle Underpass Sump');
+  const [houseNo, setHouseNo] = useState(user.house_no || '');
+  const [pincode, setPincode] = useState(user.pincode || '562101');
+  const [address, setAddress] = useState(user.address || '');
+
+  // Alert preferences
   const [soundAlerts, setSoundAlerts] = useState(true);
   const [pushAlerts, setPushAlerts] = useState(true);
   const [smsAlerts, setSmsAlerts] = useState(true);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
 
-  // Synchronize places list whenever the operational zone city changes
+  // Auto-sync location metadata when City / Operational Zone changes
   useEffect(() => {
+    const meta = ZONE_LOCATION_METADATA[city];
+    if (meta) {
+      setState(meta.state);
+      setDistrict(meta.district);
+      setPincode(meta.defaultPincode);
+      setWardNo(meta.defaultWardNo);
+    }
     const places = getPlacesForZone(city);
-    if (!places.some(p => p.name === wardName)) {
+    if (!places.some((p) => p.name === wardName)) {
       setWardName(places[0]?.name || '');
     }
   }, [city]);
 
-  // Real-time GPS lively location detector
+  // Real-time GPS location detector
   const handleDetectLiveLocation = () => {
     if (!('geolocation' in navigator)) {
       addToast('Geolocation is not supported by your browser', 'warning');
@@ -64,8 +104,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
         const nearest = findNearestMonitoredPlace(pos.coords.latitude, pos.coords.longitude);
         setCity(nearest.place.city);
         setWardName(nearest.place.name);
+        const meta = ZONE_LOCATION_METADATA[nearest.place.city];
+        if (meta) {
+          setState(meta.state);
+          setDistrict(meta.district);
+          setPincode(meta.defaultPincode);
+          setWardNo(meta.defaultWardNo);
+        }
         playDeviceAlertTone('chime');
-        addToast(`📍 Lively Location Detected: ${nearest.place.name} in ${nearest.place.city} (${nearest.distanceKm} km away)`, 'success');
+        addToast(
+          `📍 Lively Location Detected: ${nearest.place.name} in ${nearest.place.city}, ${meta?.district || ''} (${nearest.distanceKm} km away)`,
+          'success'
+        );
       },
       (err) => {
         setIsLocating(false);
@@ -78,29 +128,83 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
     );
   };
 
-  const handleCitizenSubmit = async (e: React.FormEvent) => {
+  // Sign In / Log In Handler
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginIdentifier.trim()) {
+      addToast('Please enter your Registered Mobile Phone Number or Email', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await api.loginUser({
+        identifier: loginIdentifier.trim(),
+        phone: loginIdentifier.trim(),
+        email: loginIdentifier.trim(),
+        password: loginPassword.trim() || undefined
+      });
+
+      loginUserSession(res.user);
+
+      // Trigger location proximity siren test if user has target spot
+      const targetSpot = res.user.nearest_spot || res.user.ward_name || res.user.ward || 'BB Road - Shidlaghatta Circle Underpass Sump';
+      await checkLiveLocation(targetSpot);
+
+      if (res.user.sound_alerts_enabled !== false) {
+        playDeviceAlertTone('chime');
+      }
+
+      triggerDeviceNotification(
+        `🚨 Welcome back, ${res.user.name}!`,
+        `Armed flood monitoring for ${res.user.city} (${res.user.district || res.user.city}). Loud sirens active.`
+      );
+
+      addToast(`Signed in successfully as ${res.user.name}! Sirens armed.`, 'success');
+      onSuccess();
+    } catch (err: any) {
+      addToast(err.message || 'Login failed. Please check your credentials or create an account.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Sign Up / Registration Handler with Full Location Details
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      addToast('Please enter your full name', 'error');
+      addToast('Please enter your Full Name', 'error');
       return;
     }
     if (!phone.trim() || phone.replace(/\D/g, '').length < 8) {
       addToast('Please enter a valid 10-digit mobile phone number', 'error');
       return;
     }
+    if (!houseNo.trim()) {
+      addToast('Please enter your House / Flat / Building No', 'warning');
+    }
 
     setIsLoading(true);
     try {
       const places = getPlacesForZone(city);
-      const matchedPlace = places.find(p => p.name === wardName) || places[0];
+      const matchedPlace = places.find((p) => p.name === wardName) || places[0];
 
       const res = await api.registerUser({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
+        password: password.trim() || 'preset',
         role: 'citizen',
-        city,
-        ward_name: `${matchedPlace.name} (${matchedPlace.ward_name})`,
+        state: state.trim() || 'Karnataka',
+        district: district.trim() || city,
+        city: city.trim(),
+        ward_no: wardNo.trim() || 'Ward 12',
+        ward_name: `${matchedPlace.name} (${wardNo || matchedPlace.ward_name})`,
+        house_no: houseNo.trim(),
+        pincode: pincode.trim(),
+        address: address.trim(),
+        nearest_spot: matchedPlace.name,
+        street_id: matchedPlace.id,
         alerts_enabled: true,
         sound_alerts_enabled: soundAlerts,
         sms_alerts_enabled: smsAlerts
@@ -108,7 +212,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
       loginUserSession(res.user);
 
-      // Check live location so alert is immediately armed on device
+      // Armed live location
       await checkLiveLocation(matchedPlace.name);
 
       if (soundAlerts) {
@@ -118,11 +222,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       if (pushAlerts) {
         triggerDeviceNotification(
           `🚨 JalDrishti Device Alerts Active: ${name}`,
-          `Device registered for ${matchedPlace.name} (${city}). Emergency audible sirens armed.`
+          `Device registered for ${houseNo ? houseNo + ', ' : ''}${wardNo}, ${city} (${district}). Emergency audible sirens armed.`
         );
       }
 
-      addToast(`Device registered! Emergency alerts armed for ${name}.`, 'success');
+      addToast(
+        `Registered successfully! Sirens armed for ${houseNo ? houseNo + ', ' : ''}${city} (${pincode}).`,
+        'success'
+      );
       onSuccess();
     } catch (err: any) {
       addToast(err.message || 'Registration failed', 'error');
@@ -131,14 +238,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
     }
   };
 
-  const handleCitizenDemoLogin = async () => {
+  // Demo Citizen Quick Sign-In
+  const handleQuickDemoLogin = async (cityChoice: 'Chikkaballapur' | 'Bengaluru' = 'Chikkaballapur') => {
     setIsLoading(true);
     try {
-      const res = await api.loginUser({ preset: 'citizen' });
+      const targetPhone = cityChoice === 'Chikkaballapur' ? '+91 94480 55501' : '+91 98765 43210';
+      const targetName = cityChoice === 'Chikkaballapur' ? 'Manjunath Gowda (Citizen)' : 'Ananya Rao (Citizen)';
+      const targetSpot =
+        cityChoice === 'Chikkaballapur'
+          ? 'BB Road - Shidlaghatta Circle Underpass Sump'
+          : 'Silk Board Junction Low-Lying Underpass';
+
+      const res = await api.loginUser({
+        phone: targetPhone,
+        name: targetName,
+        city: cityChoice,
+        ward_name: targetSpot
+      });
+
       loginUserSession(res.user);
-      await checkLiveLocation('Silk Board Junction Low-Lying Underpass');
+      await checkLiveLocation(targetSpot);
       playDeviceAlertTone('chime');
-      addToast(`Logged in as Public Citizen (${res.user.name})`, 'success');
+      addToast(`⚡ Instant Demo Login as ${res.user.name} (${cityChoice})`, 'success');
       onSuccess();
     } catch (err: any) {
       addToast(err.message || 'Demo login failed', 'error');
@@ -147,15 +268,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
     }
   };
 
+  const currentZoneMeta = ZONE_LOCATION_METADATA[city] || ZONE_LOCATION_METADATA['Chikkaballapur'];
+
   return (
-    <div className="min-h-full py-8 px-4 flex items-center justify-center">
-      <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden">
-        {/* Header - Dedicated to Public Citizens */}
+    <div className="min-h-full py-8 px-4 flex items-center justify-center font-sans">
+      <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden transition-all">
+        {/* Top Header Banner */}
         <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-blue-950 text-white p-6 relative">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider bg-amber-400/15 border border-amber-400/30 px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-xs">
+            <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider bg-amber-400/15 border border-amber-400/30 px-3 py-1 rounded-full flex items-center gap-1.5 shadow-xs">
               <Radio className="w-3.5 h-3.5 text-amber-400 animate-ping" />
-              Public Citizen Flood Alert Portal
+              Public Citizen Emergency Flood Alert System
             </span>
             {user.isLoggedIn && (
               <button
@@ -169,200 +292,487 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
             )}
           </div>
 
-          <div className="flex items-center gap-3.5 mb-2">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-teal-500 to-teal-300 flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg">
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-teal-500 to-teal-300 flex items-center justify-center text-slate-950 font-black text-2xl shadow-xl flex-shrink-0">
               जल
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-extrabold text-xl tracking-tight text-white">Public Citizen Alert Login</h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/25 text-blue-300 border border-blue-400/30">
-                  Citizen Portal
+                <h1 className="font-extrabold text-2xl tracking-tight text-white">JalDrishti Civic Portal</h1>
+                <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-500/25 text-blue-300 border border-blue-400/30">
+                  Citizen Edition
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                Register your device to receive real-time audible flood sirens, localized choke point warnings & detour alerts.
+              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                Connect your device to receive real-time audible flood sirens, waterlogging depth nowcasts & localized detour alerts.
               </p>
             </div>
           </div>
-        </div>
 
-        {/* Public Citizen Registration Form */}
-        <form onSubmit={handleCitizenSubmit} className="p-6 space-y-4">
-          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-start gap-2.5 shadow-2xs">
-            <Radio className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5 animate-pulse" />
-            <div className="leading-relaxed">
-              <strong>Device Alert Allocation:</strong> Subscribing registers this browser session & mobile phone number to receive instantaneous audible sirens and cell broadcasts when flooding is detected in your chosen corridor.
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-blue-600" />
-                Full Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Ananya Rao"
-                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Phone className="w-3.5 h-3.5 text-blue-600" />
-                Mobile Phone Number <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="tel"
-                required
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+91 98765 43210"
-                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium text-slate-900"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                Operational Zone <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
-              >
-                {OPERATIONAL_ZONES.map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone} (Operational Zone)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                <Mail className="w-3.5 h-3.5 text-blue-600" />
-                Email Address (Optional)
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900"
-              />
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-rose-600" />
-                Target Monitored Corridor & Underpass Choke Point in {city} <span className="text-rose-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleDetectLiveLocation}
-                disabled={isLocating}
-                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
-                title="Detect nearest monitored choke point using browser GPS"
-              >
-                {isLocating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
-                    <span>Detecting GPS...</span>
-                  </>
-                ) : (
-                  <>
-                    <Crosshair className="w-3 h-3 text-blue-600" />
-                    <span>📍 Detect My Live Location</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <select
-              value={wardName}
-              onChange={(e) => setWardName(e.target.value)}
-              className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
-            >
-              {getPlacesForZone(city).map((place) => (
-                <option key={place.id} value={place.name}>
-                  {place.name} ({place.ward_name}) — [{place.default_risk} Risk]
-                </option>
-              ))}
-            </select>
-            <p className="text-[11px] text-slate-500 mt-1">
-              Exact synchronized monitored places in the <strong>{city} Operational Zone</strong>.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-            <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">
-              Active Notification Signals on This Device:
-            </span>
-
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
-              <input
-                type="checkbox"
-                checked={soundAlerts}
-                onChange={(e) => setSoundAlerts(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-              />
-              <Volume2 className="w-4 h-4 text-amber-600 flex-shrink-0" />
-              <span>Audible Siren Alarm on This Device (Piercing Loudness, No Vibration)</span>
-            </label>
-
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
-              <input
-                type="checkbox"
-                checked={pushAlerts}
-                onChange={(e) => setPushAlerts(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-              />
-              <BellRing className="w-4 h-4 text-teal-600 flex-shrink-0" />
-              <span>Native Browser & OS Push Notifications</span>
-            </label>
-
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
-              <input
-                type="checkbox"
-                checked={smsAlerts}
-                onChange={(e) => setSmsAlerts(e.target.checked)}
-                className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-              />
-              <Smartphone className="w-4 h-4 text-blue-600 flex-shrink-0" />
-              <span>Cell Broadcast & SMS Warning Priority</span>
-            </label>
-          </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full sm:flex-1 py-3 px-4 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-            >
-              <span>{isLoading ? 'Connecting Device...' : 'Register & Arm Device Alerts'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-
+          {/* Mode Switcher Tabs (Sign In vs Sign Up) */}
+          <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl">
             <button
               type="button"
-              onClick={handleCitizenDemoLogin}
-              disabled={isLoading}
-              className="w-full sm:w-auto py-3 px-4 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
-              title="One-click citizen login (Ananya Rao)"
+              onClick={() => setAuthMode('signin')}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                authMode === 'signin'
+                  ? 'bg-blue-600 text-white shadow-md font-extrabold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>⚡ Instant Citizen Demo</span>
+              <KeyRound className="w-4 h-4" />
+              <span>Sign In (Existing Resident)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode('signup')}
+              className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                authMode === 'signup'
+                  ? 'bg-blue-600 text-white shadow-md font-extrabold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span>Sign Up (Full Location Register)</span>
             </button>
           </div>
-        </form>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* VIEW 1: SIGN IN (LOG IN) PAGE                                             */}
+        {/* ========================================================================= */}
+        {authMode === 'signin' && (
+          <form onSubmit={handleSignIn} className="p-6 space-y-4">
+            <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-start gap-2.5 shadow-2xs">
+              <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <strong>Registered Device Access:</strong> Sign in with your registered mobile phone number or email to arm your device with live siren telemetry and receive notifications for your local ward.
+              </div>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-blue-600" />
+                  Mobile Phone Number or Registered Email <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    required
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    placeholder="e.g. +91 94480 55501 or citizen@example.com"
+                    className="w-full text-xs px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Enter the phone number or email you used when creating your resident flood alert account.
+                </p>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5 text-blue-600" />
+                    Security PIN / Password (Optional)
+                  </label>
+                  <span className="text-[11px] text-slate-400">Leave blank for quick SMS OTP access</span>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="Enter 4-digit PIN or password (or leave empty)"
+                    className="w-full text-xs px-3.5 py-2.5 pr-10 rounded-xl border border-slate-300 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium text-slate-900 bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Demo Citizen Buttons */}
+            <div className="pt-2">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                ⚡ Instant Quick Sign-In (Demo Resident Profiles):
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('Chikkaballapur')}
+                  disabled={isLoading}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-all flex items-center justify-between shadow-2xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    <span className="font-extrabold">Chikkaballapur Resident</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-200/60 px-1.5 py-0.5 rounded">
+                    Ward 12
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickDemoLogin('Bengaluru')}
+                  disabled={isLoading}
+                  className="py-2.5 px-3 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-all flex items-center justify-between shadow-2xs cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    <span className="font-extrabold">Bengaluru Resident</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-blue-700 bg-blue-200/60 px-1.5 py-0.5 rounded">
+                    Silk Board
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Submit Action */}
+            <div className="pt-3 space-y-3">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 px-4 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <span>{isLoading ? 'Authenticating Device...' : 'Sign In & Access Live Sirens'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signup')}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                >
+                  New Resident in this City? Create Account with Full Location Details →
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* ========================================================================= */}
+        {/* VIEW 2: SIGN UP (CREATE ACCOUNT WITH FULL LOCATION DETAILS)               */}
+        {/* ========================================================================= */}
+        {authMode === 'signup' && (
+          <form onSubmit={handleSignUp} className="p-6 space-y-4">
+            <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex items-start gap-2.5 shadow-2xs">
+              <Radio className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5 animate-pulse" />
+              <div className="leading-relaxed">
+                <strong>Full Location Verification:</strong> Provide your exact State, District, City, Ward No, House No, and PIN Code so the hydrological telemetry engine can arm precise, audible flood alerts for your exact residence.
+              </div>
+            </div>
+
+            {/* Personal Details */}
+            <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50 space-y-3">
+              <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider block flex items-center gap-1.5">
+                <User className="w-3.5 h-3.5 text-blue-600" />
+                1. Resident Identity Credentials
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Manjunath Gowda"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-blue-600" />
+                    Mobile Phone Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="+91 94480 55501"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Mail className="w-3.5 h-3.5 text-blue-600" />
+                    Email Address (Optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="resident@example.com"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Lock className="w-3.5 h-3.5 text-blue-600" />
+                    Account Password / PIN
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Set security PIN or password"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Comprehensive Location Details */}
+            <div className="border border-blue-200 rounded-2xl p-4 bg-blue-50/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black text-blue-950 uppercase tracking-wider flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                  2. Full Residential Location Details (District, State, City, House No, PIN Code, Ward)
+                </span>
+                <button
+                  type="button"
+                  onClick={handleDetectLiveLocation}
+                  disabled={isLocating}
+                  className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-blue-300 shadow-2xs transition-all cursor-pointer"
+                  title="Detect GPS location"
+                >
+                  {isLocating ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                      <span>Detecting GPS...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Crosshair className="w-3 h-3 text-blue-600" />
+                      <span>📍 Auto-Fill via GPS</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* State & District Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    State <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
+                  >
+                    {INDIAN_STATES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    District <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    placeholder="e.g. Chikkaballapur or Bengaluru Urban"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* City & PIN Code Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Building2 className="w-3.5 h-3.5 text-blue-600" />
+                    City / Operational Zone <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-bold bg-white text-slate-900"
+                  >
+                    {OPERATIONAL_ZONES.map((zone) => (
+                      <option key={zone} value={zone}>
+                        {zone} (Operational Zone)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    PIN Code (Postal Code) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={pincode}
+                    onChange={(e) => setPincode(e.target.value)}
+                    placeholder="e.g. 562101 or 560068"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Ward No & House No Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ward No / Division <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={wardNo}
+                      onChange={(e) => setWardNo(e.target.value)}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
+                    >
+                      {currentZoneMeta.wards.map((w) => (
+                        <option key={w.wardNo} value={w.wardNo}>
+                          {w.wardNo} - {w.wardName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                    <Home className="w-3.5 h-3.5 text-blue-600" />
+                    House No / Door No / Flat <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={houseNo}
+                    onChange={(e) => setHouseNo(e.target.value)}
+                    placeholder="e.g. #24/A, Ground Floor, Sri Krishna Nilaya"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold text-slate-900 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Full Street Address / Landmark */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Street Address / Landmark (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. Near Shidlaghatta Circle Underpass Sump, Main Road"
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
+                />
+              </div>
+
+              {/* Nearest Monitored Corridor / Choke Point */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  Target Monitored Corridor in {city} (For Siren Dispatch) <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={wardName}
+                  onChange={(e) => setWardName(e.target.value)}
+                  className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
+                >
+                  {getPlacesForZone(city).map((place) => (
+                    <option key={place.id} value={place.name}>
+                      {place.name} ({place.ward_name}) — [{place.default_risk} Risk]
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  When this choke point accumulates water, your registered device will sound a piercing alarm.
+                </p>
+              </div>
+            </div>
+
+            {/* Active Device Notification Preferences */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider block">
+                Active Notification Signals on This Device:
+              </span>
+
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={soundAlerts}
+                  onChange={(e) => setSoundAlerts(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <Volume2 className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span>Audible Siren Alarm on This Device (Piercing Loudness, No Vibration)</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={pushAlerts}
+                  onChange={(e) => setPushAlerts(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <BellRing className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                <span>Native Browser & OS Push Notifications</span>
+              </label>
+
+              <label className="flex items-center gap-2.5 cursor-pointer text-xs font-semibold text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={smsAlerts}
+                  onChange={(e) => setSmsAlerts(e.target.checked)}
+                  className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
+                />
+                <Smartphone className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                <span>Cell Broadcast & SMS Warning Priority</span>
+              </label>
+            </div>
+
+            {/* Registration Actions */}
+            <div className="pt-2 space-y-3">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 px-4 rounded-xl text-xs font-black bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+              >
+                <span>{isLoading ? 'Registering Residence...' : 'Create Account & Arm Device Sirens'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signin')}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                >
+                  Already have an account? Sign In here →
+                </button>
+              </div>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );

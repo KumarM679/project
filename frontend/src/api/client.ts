@@ -246,7 +246,22 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  loginUser: (params: { phone?: string; role?: string; preset?: string; name?: string; city?: string; ward_name?: string }) =>
+  loginUser: (params: {
+    identifier?: string;
+    phone?: string;
+    email?: string;
+    password?: string;
+    role?: string;
+    preset?: string;
+    name?: string;
+    city?: string;
+    ward_name?: string;
+    state?: string;
+    district?: string;
+    ward_no?: string;
+    house_no?: string;
+    pincode?: string;
+  }) =>
     fetchJson<{ status: string; message: string; user: UserSession }>(`${API_BASE}/auth/login`, {
       method: 'POST',
       body: JSON.stringify(params),

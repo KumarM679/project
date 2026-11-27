@@ -62,8 +62,15 @@ def init_users_table():
             email TEXT,
             password_hash TEXT DEFAULT 'preset',
             role TEXT NOT NULL DEFAULT 'citizen',
-            city TEXT NOT NULL DEFAULT 'Bengaluru',
-            ward_name TEXT DEFAULT 'Majestic & Gandhinagar (Ward 94)',
+            state TEXT DEFAULT 'Karnataka',
+            district TEXT DEFAULT 'Chikkaballapur',
+            city TEXT NOT NULL DEFAULT 'Chikkaballapur',
+            ward_no TEXT DEFAULT 'Ward 12',
+            ward_name TEXT DEFAULT 'BB Road - Shidlaghatta Circle Underpass Sump (Ward 12)',
+            house_no TEXT DEFAULT '',
+            pincode TEXT DEFAULT '',
+            address TEXT DEFAULT '',
+            nearest_spot TEXT DEFAULT 'BB Road - Shidlaghatta Circle Underpass Sump',
             street_id INTEGER,
             alerts_enabled INTEGER DEFAULT 1,
             sound_alerts_enabled INTEGER DEFAULT 1,
@@ -76,17 +83,36 @@ def init_users_table():
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_users_city_ward ON users(city, ward_name)')
 
+        # Safely migrate existing users table with all detailed location columns
+        cursor_cols = c.execute("PRAGMA table_info(users)").fetchall()
+        existing_cols = [dict(col)['name'] if isinstance(col, sqlite3.Row) else col[1] for col in cursor_cols]
+        columns_to_add = [
+            ('state', "TEXT DEFAULT 'Karnataka'"),
+            ('district', "TEXT DEFAULT 'Chikkaballapur'"),
+            ('ward_no', "TEXT DEFAULT 'Ward 12'"),
+            ('house_no', "TEXT DEFAULT ''"),
+            ('pincode', "TEXT DEFAULT ''"),
+            ('address', "TEXT DEFAULT ''"),
+            ('nearest_spot', "TEXT DEFAULT ''"),
+        ]
+        for col_name, col_def in columns_to_add:
+            if col_name not in existing_cols:
+                try:
+                    c.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_def}")
+                except Exception as ex:
+                    print(f"Column {col_name} alter warning: {ex}")
+
         c.execute('SELECT COUNT(*) FROM users')
         if c.fetchone()[0] == 0:
             seed_users = [
-                ('Ananya Rao (Citizen)', '+91 98765 43210', 'ananya.rao@gmail.com', 'citizen', 'Bengaluru', 'Majestic & Gandhinagar (Ward 94)', 1, 1, 1, 1, 'CITIZEN-KA-01'),
-                ('Commander R. Sharma', '+91 98000 00001', 'r.sharma@eoc.gov.in', 'eoc_chief', 'Bengaluru', 'Central Command EOC', None, 1, 1, 1, 'NDMA-KA-092'),
-                ('Er. Praveen Kumar', '+91 98000 00002', 'praveen.k@bbmp.gov.in', 'ward_engineer', 'Bengaluru', 'BTM Layout & Silk Board', 2, 1, 1, 1, 'BBMP-EE-104'),
-                ('System Admin', '+91 98000 00000', 'admin@jaldrishti.local', 'admin', 'All Cities', 'Headquarters', None, 1, 1, 1, 'SYS-ROOT-01'),
+                ('Ananya Rao (Citizen)', '+91 98765 43210', 'ananya.rao@gmail.com', 'citizen', 'Karnataka', 'Chikkaballapur', 'Chikkaballapur', 'Ward 12', 'BB Road - Shidlaghatta Circle Underpass Sump (Ward 12)', '#14, Ground Floor, Shidlaghatta Main Road', '562101', 'Near Shidlaghatta Circle Underpass', 'BB Road - Shidlaghatta Circle Underpass Sump', 28, 1, 1, 1, 'CITIZEN-CKB-01'),
+                ('Commander R. Sharma', '+91 98000 00001', 'r.sharma@eoc.gov.in', 'eoc_chief', 'Karnataka', 'Bengaluru Urban', 'Bengaluru', 'HQ', 'Central Command EOC', 'Room 402, Disaster Ops Center', '560001', 'Vidhana Soudha Zone', 'Central Command EOC', None, 1, 1, 1, 'NDMA-KA-092'),
+                ('Er. Praveen Kumar', '+91 98000 00002', 'praveen.k@bbmp.gov.in', 'ward_engineer', 'Karnataka', 'Bengaluru Urban', 'Bengaluru', 'Ward 176', 'BTM Layout & Silk Board', '#88, 16th Main, BTM 2nd Stage', '560076', 'BTM Water Board Junction', 'Silk Board Junction Low-Lying Underpass', 1, 1, 1, 1, 'BBMP-EE-104'),
+                ('System Admin', '+91 98000 00000', 'admin@jaldrishti.local', 'admin', 'Karnataka', 'Bengaluru Urban', 'All Cities', 'HQ', 'Headquarters', 'System Operations Command', '560001', 'Central Server Infrastructure', 'Main Center', None, 1, 1, 1, 'SYS-ROOT-01'),
             ]
             c.executemany('''
-            INSERT INTO users (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (name, phone, email, role, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', seed_users)
         conn.commit()
         conn.close()
@@ -704,10 +730,21 @@ def register_user():
     name = (data.get('name') or '').strip()
     phone = (data.get('phone') or '').strip()
     email = (data.get('email') or '').strip()
+    password = (data.get('password') or 'preset').strip()
     role = data.get('role', 'citizen')
-    city = data.get('city', 'Bengaluru')
-    ward_name = data.get('ward_name', 'Majestic & Gandhinagar (Ward 94)')
-    street_id = data.get('street_id', 1)
+    
+    # Detailed location attributes
+    state = (data.get('state') or 'Karnataka').strip()
+    district = (data.get('district') or 'Chikkaballapur').strip()
+    city = (data.get('city') or 'Chikkaballapur').strip()
+    ward_no = (data.get('ward_no') or 'Ward 12').strip()
+    ward_name = (data.get('ward_name') or 'Shidlaghatta Circle').strip()
+    house_no = (data.get('house_no') or '').strip()
+    pincode = (data.get('pincode') or '').strip()
+    address = (data.get('address') or '').strip()
+    nearest_spot = (data.get('nearest_spot') or '').strip()
+    street_id = data.get('street_id', 28)
+
     alerts_enabled = 1 if data.get('alerts_enabled', True) else 0
     sound_alerts_enabled = 1 if data.get('sound_alerts_enabled', True) else 0
     sms_alerts_enabled = 1 if data.get('sms_alerts_enabled', True) else 0
@@ -726,18 +763,20 @@ def register_user():
     if existing:
         cursor.execute('''
         UPDATE users
-        SET name = ?, email = COALESCE(?, email), city = ?, ward_name = ?, street_id = ?,
+        SET name = ?, email = COALESCE(?, email), password_hash = COALESCE(?, password_hash),
+            state = ?, district = ?, city = ?, ward_no = ?, ward_name = ?,
+            house_no = ?, pincode = ?, address = ?, nearest_spot = ?, street_id = ?,
             role = ?, alerts_enabled = ?, sound_alerts_enabled = ?, sms_alerts_enabled = ?,
             last_login = CURRENT_TIMESTAMP
         WHERE phone = ?
-        ''', (name, email, city, ward_name, street_id, role, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, phone))
+        ''', (name, email, password, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, role, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, phone))
         user_id = existing['id']
     else:
         badge = f"CITIZEN-{city[:2].upper()}-{phone[-4:]}" if role == 'citizen' else f"OFFICER-{city[:2].upper()}-99"
         cursor.execute('''
-        INSERT INTO users (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, phone, email, role, city, ward_name, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge))
+        INSERT INTO users (name, phone, email, password_hash, role, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (name, phone, email, password, role, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge))
         user_id = cursor.lastrowid
 
     conn.commit()
@@ -749,19 +788,22 @@ def register_user():
         'USER_REGISTERED',
         name,
         role,
-        f"User registered/subscribed for civic flood alerts in {city} / {ward_name} (Phone: {phone})"
+        f"Resident registered with location: {house_no}, {ward_no} ({ward_name}), {city}, {district}, {state} - PIN: {pincode} (Phone: {phone})"
     )
 
     return jsonify({
         'status': 'success',
-        'message': f"Welcome, {name}! Your device ({phone}) is successfully registered for flood alerts.",
+        'message': f"Welcome, {name}! Your residence at {house_no or ward_name}, {city} is registered for flood sirens.",
         'user': user
     }), 201
 
 @app.route('/api/auth/login', methods=['POST'])
 def login_user():
     data = request.get_json(silent=True) or {}
+    identifier = (data.get('identifier') or data.get('phone') or data.get('email') or '').strip()
     phone = (data.get('phone') or '').strip()
+    email = (data.get('email') or '').strip()
+    password = (data.get('password') or '').strip()
     preset = data.get('preset')
     role = data.get('role')
 
@@ -775,17 +817,25 @@ def login_user():
     elif preset in ['eoc_chief', 'ward_engineer', 'admin']:
         cursor.execute("SELECT * FROM users WHERE role = ? LIMIT 1", (preset,))
         user = cursor.fetchone()
-    elif phone:
-        cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+    elif identifier or phone or email:
+        target = identifier or phone or email
+        # Look up by phone OR email OR name
+        cursor.execute("SELECT * FROM users WHERE phone = ? OR email = ? OR name = ?", (target, target, target))
         user = cursor.fetchone()
-        if not user:
-            name = data.get('name') or f"Citizen ({phone[-4:]})"
-            city = data.get('city') or 'Bengaluru'
-            ward = data.get('ward_name') or 'Majestic & Gandhinagar (Ward 94)'
+        
+        # If user not found and it looks like a phone number, quick-provision standard resident record
+        if not user and phone:
+            name = data.get('name') or f"Resident ({phone[-4:]})"
+            city = data.get('city') or 'Chikkaballapur'
+            state = data.get('state') or 'Karnataka'
+            district = data.get('district') or 'Chikkaballapur'
+            ward_no = data.get('ward_no') or 'Ward 12'
+            ward = data.get('ward_name') or 'BB Road - Shidlaghatta Circle Underpass Sump (Ward 12)'
+            badge = f"CITIZEN-{city[:2].upper()}-{phone[-4:]}"
             cursor.execute('''
-            INSERT INTO users (name, phone, role, city, ward_name)
-            VALUES (?, ?, 'citizen', ?, ?)
-            ''', (name, phone, city, ward))
+            INSERT INTO users (name, phone, password_hash, role, state, district, city, ward_no, ward_name, badge_number)
+            VALUES (?, ?, ?, 'citizen', ?, ?, ?, ?, ?, ?)
+            ''', (name, phone, password or 'preset', state, district, city, ward_no, ward, badge))
             conn.commit()
             cursor.execute("SELECT * FROM users WHERE id = ?", (cursor.lastrowid,))
             user = cursor.fetchone()
@@ -799,7 +849,10 @@ def login_user():
 
     user_dict = dict(user) if user else {
         'id': 1, 'name': 'Public Citizen', 'phone': '+91 98765 43210',
-        'role': 'citizen', 'city': 'Bengaluru', 'ward_name': 'Majestic Ward 94'
+        'role': 'citizen', 'state': 'Karnataka', 'district': 'Chikkaballapur',
+        'city': 'Chikkaballapur', 'ward_no': 'Ward 12',
+        'ward_name': 'BB Road - Shidlaghatta Circle Underpass Sump',
+        'house_no': '#14 Main Road', 'pincode': '562101'
     }
 
     if user:
@@ -811,12 +864,12 @@ def login_user():
         'USER_LOGIN',
         user_dict['name'],
         user_dict['role'],
-        f"User logged in ({user_dict.get('phone', 'N/A')})"
+        f"Resident logged in: {user_dict.get('name')} ({user_dict.get('phone', 'N/A')}) - {user_dict.get('city')}"
     )
 
     return jsonify({
         'status': 'success',
-        'message': f"Authenticated successfully as {user_dict['name']}",
+        'message': f"Signed in successfully as {user_dict['name']}",
         'user': user_dict
     })
 
@@ -858,14 +911,25 @@ def update_profile():
     UPDATE users
     SET name = COALESCE(?, name),
         email = COALESCE(?, email),
+        state = COALESCE(?, state),
+        district = COALESCE(?, district),
         city = COALESCE(?, city),
+        ward_no = COALESCE(?, ward_no),
         ward_name = COALESCE(?, ward_name),
+        house_no = COALESCE(?, house_no),
+        pincode = COALESCE(?, pincode),
+        address = COALESCE(?, address),
+        nearest_spot = COALESCE(?, nearest_spot),
         alerts_enabled = COALESCE(?, alerts_enabled),
         sound_alerts_enabled = COALESCE(?, sound_alerts_enabled),
         sms_alerts_enabled = COALESCE(?, sms_alerts_enabled)
     WHERE id = ? OR phone = ?
     ''', (
-        data.get('name'), data.get('email'), data.get('city'), data.get('ward_name'),
+        data.get('name'), data.get('email'),
+        data.get('state'), data.get('district'), data.get('city'),
+        data.get('ward_no'), data.get('ward_name'),
+        data.get('house_no'), data.get('pincode'),
+        data.get('address'), data.get('nearest_spot'),
         data.get('alerts_enabled'), data.get('sound_alerts_enabled'), data.get('sms_alerts_enabled'),
         user_id, phone
     ))
@@ -885,7 +949,7 @@ def update_profile():
 def get_all_users():
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, phone, email, role, city, ward_name, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number, last_login, created_at FROM users ORDER BY id ASC")
+    cursor.execute("SELECT id, name, phone, email, role, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, badge_number, last_login, created_at FROM users ORDER BY id ASC")
     users = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return jsonify({'users': users, 'count': len(users)})
