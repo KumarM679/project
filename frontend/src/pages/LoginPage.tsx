@@ -147,13 +147,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       <div className="bg-white rounded-2xl max-w-xl w-full shadow-xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-slate-900 via-navy-900 to-slate-900 text-white p-6 relative">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white mb-3 transition-colors font-semibold"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to Dashboard</span>
-          </button>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wider bg-amber-400/10 border border-amber-400/30 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+              <Radio className="w-3 h-3 text-amber-400 animate-ping" />
+              National Urban Flood Portal
+            </span>
+            <button
+              onClick={onBack}
+              className="text-xs text-slate-300 hover:text-teal-300 transition-colors font-bold underline flex items-center gap-1"
+              title={user.isLoggedIn ? "Back to Dashboard" : "Browse as guest resident"}
+            >
+              {user.isLoggedIn ? (
+                <>
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Dashboard</span>
+                </>
+              ) : (
+                <span>Continue as Guest Resident →</span>
+              )}
+            </button>
+          </div>
 
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-teal-500 to-teal-300 flex items-center justify-center text-slate-950 font-black text-2xl shadow-md">
@@ -163,7 +176,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
               <div className="flex items-center gap-2">
                 <h2 className="font-extrabold text-xl tracking-tight text-white">Citizen Flood Alert Registration</h2>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-400/30">
-                  National Disaster Portal
+                  v2.4 Live
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">

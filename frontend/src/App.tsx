@@ -22,7 +22,7 @@ import { PublicPortalPage } from './pages/PublicPortalPage';
 import { LoginPage } from './pages/LoginPage';
 
 export const App: React.FC = () => {
-  const { activeCity, refreshTrigger, triggerRefresh, portal, setPortal, isAuthModalOpen, setAuthModalOpen } = useApp();
+  const { activeCity, refreshTrigger, triggerRefresh, portal, setPortal, user, loginUserSession, isAuthModalOpen, setAuthModalOpen } = useApp();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
   const [streetsList, setStreetsList] = useState<Street[]>([]);
@@ -73,6 +73,39 @@ export const App: React.FC = () => {
     setIsDrainageModalOpen(false);
     setEditDrainageRecord(null);
   };
+
+  // FIRST VIEW: Show Login Page first until user logs in or registers
+  if (!user.isLoggedIn) {
+    return (
+      <div className="min-h-screen w-screen bg-[#070e1e] flex flex-col items-center justify-center font-sans p-4 overflow-y-auto">
+        <LoginPage
+          onSuccess={() => {
+            setCurrentTab('dashboard');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onBack={() => {
+            // Guest mode entry
+            loginUserSession({
+              id: 1,
+              role: 'citizen',
+              name: 'Public Resident (Guest)',
+              phone: '+91 98765 43210',
+              email: 'guest@jaldrishti.gov.in',
+              city: activeCity === 'All Cities' ? 'Bengaluru' : activeCity,
+              ward: 'Majestic & Gandhinagar (Ward 94)',
+              ward_name: 'Majestic & Gandhinagar (Ward 94)',
+              alerts_enabled: true,
+              sound_alerts_enabled: true,
+              sms_alerts_enabled: true,
+              isLoggedIn: true
+            });
+            setCurrentTab('dashboard');
+          }}
+        />
+        <ToastContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">

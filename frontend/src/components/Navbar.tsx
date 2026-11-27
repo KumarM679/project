@@ -9,7 +9,8 @@ import {
   Users,
   ShieldAlert,
   User,
-  LogIn
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -21,7 +22,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onOpenDrainageModal,
 }) => {
-  const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal, user, setAuthModalOpen } = useApp();
+  const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal, user, setAuthModalOpen, logoutUserSession } = useApp();
   const [isApplyingScenario, setIsApplyingScenario] = useState(false);
   const [isEvaluatingAlerts, setIsEvaluatingAlerts] = useState(false);
 
@@ -182,15 +183,24 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* User Account & Alert Subscription Pill */}
-          <button
-            onClick={() => setAuthModalOpen(true)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 transition-colors shadow-xs"
-            title="Manage alert subscription profile & device credentials"
-          >
-            <div className={`w-2 h-2 rounded-full ${user.role === 'citizen' ? 'bg-blue-600' : 'bg-emerald-600'} animate-pulse`} />
-            <span className="truncate max-w-[120px] font-extrabold">{user.name}</span>
-            <span className="text-[10px] text-slate-500 hidden md:inline">({user.role === 'citizen' ? 'Citizen' : 'Officer'})</span>
-          </button>
+          <div className="flex items-center bg-slate-100 rounded-lg border border-slate-300 p-0.5 shadow-xs">
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-800 hover:text-teal-800 transition-colors"
+              title="Manage alert subscription profile & device credentials"
+            >
+              <div className={`w-2 h-2 rounded-full ${user.role === 'citizen' ? 'bg-blue-600' : 'bg-emerald-600'} animate-pulse`} />
+              <span className="truncate max-w-[120px] font-extrabold">{user.name}</span>
+              <span className="text-[10px] text-slate-500 hidden md:inline">({user.role === 'citizen' ? 'Citizen' : 'Officer'})</span>
+            </button>
+            <button
+              onClick={() => logoutUserSession()}
+              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200 transition-colors ml-1"
+              title="Sign Out to Login Page"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           {/* Refresh Data */}
           <button

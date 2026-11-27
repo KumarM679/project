@@ -41,7 +41,7 @@ const defaultUser: UserSession = {
   alerts_enabled: true,
   sound_alerts_enabled: true,
   sms_alerts_enabled: true,
-  isLoggedIn: true
+  isLoggedIn: false
 };
 
 const citizenUser: UserSession = {
@@ -58,7 +58,7 @@ const citizenUser: UserSession = {
   alerts_enabled: true,
   sound_alerts_enabled: true,
   sms_alerts_enabled: true,
-  isLoggedIn: true
+  isLoggedIn: false
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -70,15 +70,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activeCity, setActiveCity] = useState<string>('All Cities');
   const [isAuthModalOpen, setAuthModalOpen] = useState<boolean>(false);
 
+  // By default, require user login/registration first before showing dashboard
   const [user, setUser] = useState<UserSession>(() => {
     try {
+      const isAuthActive = sessionStorage.getItem('jaldrishti_auth_active');
       const savedUser = localStorage.getItem('jaldrishti_user');
-      if (savedUser) {
-        return JSON.parse(savedUser);
+      if (isAuthActive === 'true' && savedUser) {
+        const parsed = JSON.parse(savedUser);
+        return { ...parsed, isLoggedIn: true };
       }
     } catch {}
     const savedPortal = localStorage.getItem('jaldrishti_portal');
-    return savedPortal === 'eoc' ? defaultUser : citizenUser;
+    const base = savedPortal === 'eoc' ? defaultUser : citizenUser;
+    return { ...base, isLoggedIn: false };
   });
 
   const setPortal = (p: 'eoc' | 'public') => {
@@ -112,6 +116,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setUser(updated);
     localStorage.setItem('jaldrishti_user', JSON.stringify(updated));
+    sessionStorage.setItem('jaldrishti_auth_active', 'true');
     if (userData.role === 'citizen') {
       setPortalState('public');
       localStorage.setItem('jaldrishti_portal', 'public');
@@ -122,7 +127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (userData.city && userData.city !== 'All Cities') {
       setActiveCity(userData.city);
     }
-    addToast(`Signed in successfully as ${userData.name}`, 'success');
+    addToast(`Signed in successfully as ${userData.name}!`, 'success');
   };
 
   const logoutUserSession = () => {
@@ -134,7 +139,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setUser(guestUser);
     localStorage.removeItem('jaldrishti_user');
-    addToast('Signed out of citizen session.', 'info');
+    sessionStorage.removeItem('jaldrishti_auth_active');
+    addToast('Signed out. Please register or sign in to access the dashboard.', 'info');
   };
   const [scenario, setScenario] = useState<string>('monsoon_heavy');
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
