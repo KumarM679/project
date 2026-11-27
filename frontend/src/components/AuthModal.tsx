@@ -113,7 +113,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           setPincode(meta.defaultPincode);
           setWardNo(meta.defaultWardNo);
         }
-        playDeviceAlertTone('chime');
         addToast(
           `📍 Lively Location Detected: ${nearest.place.name} in ${nearest.place.city} (${nearest.distanceKm} km away)`,
           'success'
@@ -169,18 +168,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
       });
 
       loginUserSession(res.user);
-      await checkLiveLocation(matchedPlace.name);
-
-      if (soundAlerts) {
-        playDeviceAlertTone('chime');
-      }
-
-      if (pushAlerts) {
-        triggerDeviceNotification(
-          `🚨 JalDrishti Device Alerts Updated: ${name}`,
-          `Device registered for ${houseNo ? houseNo + ', ' : ''}${city} (${district}). Emergency audible sirens armed.`
-        );
-      }
+      await checkLiveLocation(matchedPlace.name, false);
 
       addToast(`Location and alert subscription profile updated successfully!`, 'success');
       onClose();

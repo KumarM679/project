@@ -60,7 +60,7 @@ interface AppContextType {
   reportedFloodLocation: ReportedFloodLocation | null;
   setReportedFloodLocation: (loc: ReportedFloodLocation | null) => void;
   liveLocation: UserLiveLocation | null;
-  checkLiveLocation: (manualPlaceName?: string) => Promise<UserLiveLocation | null>;
+  checkLiveLocation: (manualPlaceName?: string, forceAlert?: boolean) => Promise<UserLiveLocation | null>;
   isLiveTrackingActive: boolean;
   setIsLiveTrackingActive: (active: boolean) => void;
   toggleLiveTracking: () => void;
@@ -282,13 +282,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return loc;
   };
 
-  const checkLiveLocation = async (manualPlaceName?: string): Promise<UserLiveLocation | null> => {
+  const checkLiveLocation = async (manualPlaceName?: string, forceAlert: boolean = false): Promise<UserLiveLocation | null> => {
     const places = getPlacesForZone(activeCity);
 
     // If manual place is chosen by user
     if (manualPlaceName) {
       const match = places.find(p => p.name === manualPlaceName) || places[0];
-      return processLocationUpdate(match.latitude, match.longitude, false, 10, true);
+      return processLocationUpdate(match.latitude, match.longitude, false, 10, forceAlert);
     }
 
     // Direct GPS inquiry
@@ -301,21 +301,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               pos.coords.longitude,
               true,
               pos.coords.accuracy,
-              true
+              forceAlert
             );
             resolve(loc);
           },
           (err) => {
             console.warn('GPS single reading fallback:', err);
             const defaultPlace = places[0];
-            const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, true);
+            const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert);
             resolve(loc);
           },
           { enableHighAccuracy: true, timeout: 6000, maximumAge: 5000 }
         );
       } else {
         const defaultPlace = places[0];
-        const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, true);
+        const loc = processLocationUpdate(defaultPlace.latitude, defaultPlace.longitude, false, 25, forceAlert);
         resolve(loc);
       }
     });

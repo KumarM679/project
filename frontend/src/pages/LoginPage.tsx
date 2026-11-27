@@ -111,7 +111,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
           setPincode(meta.defaultPincode);
           setWardNo(meta.defaultWardNo);
         }
-        playDeviceAlertTone('chime');
         addToast(
           `📍 Lively Location Detected: ${nearest.place.name} in ${nearest.place.city}, ${meta?.district || ''} (${nearest.distanceKm} km away)`,
           'success'
@@ -147,18 +146,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
       loginUserSession(res.user);
 
-      // Trigger location proximity siren test if user has target spot
+      // Silently initialize live location coordinates without blasting alarm
       const targetSpot = res.user.nearest_spot || res.user.ward_name || res.user.ward || 'BB Road - Shidlaghatta Circle Underpass Sump';
-      await checkLiveLocation(targetSpot);
-
-      if (res.user.sound_alerts_enabled !== false) {
-        playDeviceAlertTone('chime');
-      }
-
-      triggerDeviceNotification(
-        `🚨 Welcome back, ${res.user.name}!`,
-        `Armed flood monitoring for ${res.user.city} (${res.user.district || res.user.city}). Loud sirens active.`
-      );
+      await checkLiveLocation(targetSpot, false);
 
       addToast(`Signed in successfully as ${res.user.name}! Sirens armed.`, 'success');
       onSuccess();
@@ -212,19 +202,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
       loginUserSession(res.user);
 
-      // Armed live location
-      await checkLiveLocation(matchedPlace.name);
-
-      if (soundAlerts) {
-        playDeviceAlertTone('chime');
-      }
-
-      if (pushAlerts) {
-        triggerDeviceNotification(
-          `🚨 JalDrishti Device Alerts Active: ${name}`,
-          `Device registered for ${houseNo ? houseNo + ', ' : ''}${wardNo}, ${city} (${district}). Emergency audible sirens armed.`
-        );
-      }
+      // Silently arm live location without triggering sirens on registration
+      await checkLiveLocation(matchedPlace.name, false);
 
       addToast(
         `Registered successfully! Sirens armed for ${houseNo ? houseNo + ', ' : ''}${city} (${pincode}).`,
@@ -257,8 +236,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       });
 
       loginUserSession(res.user);
-      await checkLiveLocation(targetSpot);
-      playDeviceAlertTone('chime');
+      await checkLiveLocation(targetSpot, false);
       addToast(`⚡ Instant Demo Login as ${res.user.name} (${cityChoice})`, 'success');
       onSuccess();
     } catch (err: any) {
