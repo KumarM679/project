@@ -3,6 +3,11 @@ import { useApp } from '../context/AppContext';
 import { api } from '../api/client';
 import { playDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
 import {
+  OPERATIONAL_ZONES,
+  getPlacesForZone,
+  findNearestMonitoredPlace
+} from '../utils/operationalZones';
+import {
   User,
   Smartphone,
   Volume2,
@@ -15,7 +20,8 @@ import {
   Mail,
   Sparkles,
   ArrowLeft,
-  ShieldCheck
+  Crosshair,
+  Loader2
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -24,58 +30,53 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
-  const { user, loginUserSession, addToast } = useApp();
+  const { user, loginUserSession, addToast, checkLiveLocation } = useApp();
 
   const [name, setName] = useState(user.name !== 'Public Resident / Commuter' && user.name !== 'Public Resident (Guest)' ? user.name : '');
   const [phone, setPhone] = useState(user.phone || '');
   const [email, setEmail] = useState(user.email || '');
   const [city, setCity] = useState(user.city || 'Bengaluru');
-  const [wardName, setWardName] = useState(user.ward || 'Majestic & Gandhinagar (Ward 94)');
+  const [wardName, setWardName] = useState(user.ward || 'Silk Board Junction Low-Lying Underpass');
   const [soundAlerts, setSoundAlerts] = useState(true);
   const [pushAlerts, setPushAlerts] = useState(true);
   const [smsAlerts, setSmsAlerts] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLocating, setIsLocating] = useState(false);
 
-  const cityCorridors: Record<string, string[]> = {
-    Bengaluru: [
-      'Majestic & Gandhinagar (Ward 94)',
-      'Silk Board Junction & Outer Ring Road (Ward 176)',
-      'Bellandur & Eco-Space Technology Park (Ward 150)',
-      'Hebbal Flyover & Airport Expressway (Ward 7)',
-      'Koramangala 80ft Road & Sony World (Ward 151)',
-      'Marathahalli Multiplex Junction (Ward 85)'
-    ],
-    Hyderabad: [
-      'Tolichowki Flyover & Gachibowli Corridor',
-      'Begumpet Railway Underpass & Rasoolpura',
-      'Madhapur & Hitec City Cyber Towers'
-    ],
-    Chennai: [
-      'Velachery Main Road & Lake View Underpass',
-      'T. Nagar Usman Road & South Boag Corridor',
-      'Madipakkam Lake Drainage Choke Point'
-    ],
-    Pune: [
-      'Sinhagad Road & Canal Overflow Sector',
-      'Deccan Gymkhana & Sambhaji Bridge Underpass',
-      'Shivajinagar Bus Terminal Low Point'
-    ],
-    Vijayawada: [
-      'Benz Circle Drainage Basin',
-      'Auto Nagar Industrial Storm Corridor'
-    ],
-    Mysuru: [
-      'Suburban Bus Stand Underpass (Ward 41)',
-      'Chamundi Foothills & Nanjangud Road Corridor'
-    ]
-  };
-
+  // Synchronize places list whenever the operational zone city changes
   useEffect(() => {
-    const corridors = cityCorridors[city] || cityCorridors['Bengaluru'];
-    if (!corridors.includes(wardName)) {
-      setWardName(corridors[0]);
+    const places = getPlacesForZone(city);
+    if (!places.some(p => p.name === wardName)) {
+      setWardName(places[0]?.name || '');
     }
   }, [city]);
+
+  // Real-time GPS lively location detector
+  const handleDetectLiveLocation = () => {
+    if (!('geolocation' in navigator)) {
+      addToast('Geolocation is not supported by your browser', 'warning');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const nearest = findNearestMonitoredPlace(pos.coords.latitude, pos.coords.longitude);
+        setCity(nearest.place.city);
+        setWardName(nearest.place.name);
+        playDeviceAlertTone('chime');
+        addToast(`📍 Lively Location Detected: ${nearest.place.name} in ${nearest.place.city} (${nearest.distanceKm} km away)`, 'success');
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation error:', err);
+        const defaultPlace = getPlacesForZone(city)[0];
+        setWardName(defaultPlace.name);
+        addToast(`📍 Defaulted to ${defaultPlace.name} in ${city}`, 'info');
+      },
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 10000 }
+    );
+  };
 
   const handleCitizenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,19 +91,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
     setIsLoading(true);
     try {
+      const places = getPlacesForZone(city);
+      const matchedPlace = places.find(p => p.name === wardName) || places[0];
+
       const res = await api.registerUser({
         name: name.trim(),
         phone: phone.trim(),
         email: email.trim(),
         role: 'citizen',
         city,
-        ward_name: wardName,
+        ward_name: `${matchedPlace.name} (${matchedPlace.ward_name})`,
         alerts_enabled: true,
         sound_alerts_enabled: soundAlerts,
         sms_alerts_enabled: smsAlerts
       });
 
       loginUserSession(res.user);
+
+      // Check live location so alert is immediately armed on device
+      await checkLiveLocation(matchedPlace.name);
 
       if (soundAlerts) {
         playDeviceAlertTone('chime');
@@ -111,7 +118,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
       if (pushAlerts) {
         triggerDeviceNotification(
           `🚨 JalDrishti Device Alerts Active: ${name}`,
-          `Device registered for ${wardName} (${city}). Emergency siren and detour alerts are armed.`
+          `Device registered for ${matchedPlace.name} (${city}). Emergency audible sirens armed.`
         );
       }
 
@@ -129,6 +136,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
     try {
       const res = await api.loginUser({ preset: 'citizen' });
       loginUserSession(res.user);
+      await checkLiveLocation('Silk Board Junction Low-Lying Underpass');
       playDeviceAlertTone('chime');
       addToast(`Logged in as Public Citizen (${res.user.name})`, 'success');
       onSuccess();
@@ -226,19 +234,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
                 <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                Primary Monitored City
+                Operational Zone <span className="text-rose-500">*</span>
               </label>
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
               >
-                <option value="Bengaluru">Bengaluru</option>
-                <option value="Hyderabad">Hyderabad</option>
-                <option value="Chennai">Chennai</option>
-                <option value="Pune">Pune</option>
-                <option value="Vijayawada">Vijayawada</option>
-                <option value="Mysuru">Mysuru</option>
+                {OPERATIONAL_ZONES.map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone} (Operational Zone)
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -258,21 +265,45 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-rose-600" />
-              Target Monitored Corridor & Underpass Choke Point
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-bold text-slate-700 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                Target Monitored Corridor & Underpass Choke Point in {city} <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleDetectLiveLocation}
+                disabled={isLocating}
+                className="text-[11px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                title="Detect nearest monitored choke point using browser GPS"
+              >
+                {isLocating ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                    <span>Detecting GPS...</span>
+                  </>
+                ) : (
+                  <>
+                    <Crosshair className="w-3 h-3 text-blue-600" />
+                    <span>📍 Detect My Live Location</span>
+                  </>
+                )}
+              </button>
+            </div>
             <select
               value={wardName}
               onChange={(e) => setWardName(e.target.value)}
               className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
             >
-              {(cityCorridors[city] || cityCorridors['Bengaluru']).map((corridor) => (
-                <option key={corridor} value={corridor}>
-                  {corridor}
+              {getPlacesForZone(city).map((place) => (
+                <option key={place.id} value={place.name}>
+                  {place.name} ({place.ward_name}) — [{place.default_risk} Risk]
                 </option>
               ))}
             </select>
+            <p className="text-[11px] text-slate-500 mt-1">
+              Exact synchronized monitored places in the <strong>{city} Operational Zone</strong>.
+            </p>
           </div>
 
           <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp, ReportedFloodLocation } from '../context/AppContext';
 import { api } from '../api/client';
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { getPlacesForZone } from '../utils/operationalZones';
 import {
   Radio,
   Volume2,
@@ -16,7 +17,10 @@ import {
   UserCheck,
   AlertTriangle,
   Camera,
-  Activity
+  Activity,
+  Crosshair,
+  Loader2,
+  Navigation
 } from 'lucide-react';
 
 interface DeviceAlertBannerProps {
@@ -32,15 +36,36 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
     reportedFloodLocation,
     setReportedFloodLocation,
     activeCity,
-    refreshTrigger
+    refreshTrigger,
+    liveLocation,
+    checkLiveLocation
   } = useApp();
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [hasPlayedInitial, setHasPlayedInitial] = useState(false);
   const [isSounding, setIsSounding] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
+  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
   const [availableLocations, setAvailableLocations] = useState<ReportedFloodLocation[]>([]);
   const [isLocationSelectorOpen, setIsLocationSelectorOpen] = useState(false);
+
+  // Check live location & trigger alert on this device
+  const handleCheckLiveLocation = async (placeName?: string) => {
+    setIsCheckingLocation(true);
+    try {
+      const loc = await checkLiveLocation(placeName);
+      if (loc) {
+        addToast(
+          `📍 Lively Location Checked: ${loc.nearestPlaceName} (${loc.distanceKm} km away • ${loc.riskLevel} Risk). Device alert armed!`,
+          loc.riskLevel === 'Critical' ? 'error' : 'warning'
+        );
+      }
+    } catch (err: any) {
+      addToast(`Could not check live location: ${err.message}`, 'error');
+    } finally {
+      setIsCheckingLocation(false);
+    }
+  };
 
   // Fetch flood reports & active alerts to dynamically populate the alert location
   useEffect(() => {
@@ -222,15 +247,27 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                 Alert Allocated to: <strong className="text-white underline decoration-amber-400">{user.name}</strong>
               </span>
 
+              {/* Lively Location Status Badge */}
+              <div className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md bg-teal-950/70 border border-teal-400/40 text-teal-200 shadow-xs">
+                <Navigation className="w-3.5 h-3.5 text-teal-300 animate-pulse" />
+                <span>Lively Location:</span>
+                <span className="text-white font-extrabold underline decoration-teal-400 truncate max-w-[190px]">
+                  {liveLocation?.nearestPlaceName || activeLoc.street_name}
+                </span>
+                <span className="text-[10px] bg-teal-400/20 text-teal-200 px-1.5 py-0.5 rounded font-bold">
+                  {liveLocation?.isGps ? '📡 GPS Active' : '📍 Checked'} • {liveLocation ? `${liveLocation.distanceKm} km away` : 'Active'}
+                </span>
+              </div>
+
               {/* Dynamic Flood Report Location Badge */}
               <div className="relative">
                 <button
                   onClick={() => setIsLocationSelectorOpen(!isLocationSelectorOpen)}
                   className="inline-flex items-center gap-1.5 text-xs font-black px-2.5 py-1 rounded-md bg-amber-400 text-slate-950 hover:bg-amber-300 transition-colors shadow-xs"
-                  title="Click to change alert location based on citizen flood reports"
+                  title="Click to change alert location based on citizen flood reports or check operational zone places"
                 >
                   <MapPin className="w-3.5 h-3.5 text-rose-700" />
-                  <span className="truncate max-w-[220px]">
+                  <span className="truncate max-w-[200px]">
                     {activeLoc.street_name}
                   </span>
                   <span className="text-[10px] bg-slate-900/20 px-1 rounded font-bold">
@@ -241,7 +278,7 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
 
                 {/* Dropdown list of live flood reports & alerts */}
                 {isLocationSelectorOpen && (
-                  <div className="absolute top-full left-0 mt-1 w-80 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 space-y-1.5 max-h-80 overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1 w-84 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 space-y-1.5 max-h-96 overflow-y-auto">
                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 flex items-center justify-between border-b border-slate-800">
                       <span>Live Flood Reports & Hotspots</span>
                       <span className="text-amber-400">{availableLocations.length} active</span>
@@ -276,6 +313,33 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
                         </div>
                       </button>
                     ))}
+
+                    {/* Operational Zone Choke Points (Check Location) */}
+                    <div className="text-[10px] font-bold text-teal-400 uppercase tracking-wider px-2 pt-2.5 pb-1 border-t border-slate-800 flex items-center justify-between">
+                      <span>Check Operational Zone Places ({activeCity === 'All Cities' ? 'Bengaluru' : activeCity})</span>
+                      <Crosshair className="w-3 h-3 text-teal-400" />
+                    </div>
+
+                    {getPlacesForZone(activeCity === 'All Cities' ? 'Bengaluru' : activeCity).map((place) => (
+                      <button
+                        key={`zone-place-${place.id}`}
+                        onClick={() => {
+                          handleCheckLiveLocation(place.name);
+                          setIsLocationSelectorOpen(false);
+                        }}
+                        className="w-full text-left p-2 rounded-lg text-xs hover:bg-slate-800 text-slate-200 transition-all flex items-start gap-2"
+                      >
+                        <MapPin className="w-3.5 h-3.5 text-rose-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-extrabold truncate text-white">{place.name}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{place.ward_name} ({place.city})</div>
+                          <div className="text-[10px] font-bold text-amber-300 mt-0.5 flex items-center gap-1.5">
+                            <span className="bg-rose-500/20 text-rose-300 px-1 rounded">{place.default_risk} Risk</span>
+                            <span>• Click to Check Location</span>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -289,6 +353,26 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
 
           {/* Action buttons on this device */}
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Lively Location Check Button */}
+            <button
+              onClick={() => handleCheckLiveLocation()}
+              disabled={isCheckingLocation}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-black bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 shadow-md hover:shadow-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+              title="Check your lively GPS coordinates against flood hotspots & sound alert"
+            >
+              {isCheckingLocation ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                  <span>Checking GPS...</span>
+                </>
+              ) : (
+                <>
+                  <Crosshair className="w-3.5 h-3.5 text-slate-950" />
+                  <span>📍 Check Live Location</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={handlePlaySiren}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-black shadow-md transition-all active:scale-95 ${
@@ -349,16 +433,32 @@ export const DeviceAlertBanner: React.FC<DeviceAlertBannerProps> = ({ onNavigate
           </div>
         </div>
 
-        {/* Expanded Advisory Details - Dynamically Reflects the Flood Report Location */}
+        {/* Expanded Advisory Details - Dynamically Reflects the Flood Report Location & Lively Location */}
         {!isMinimized && (
-          <div className="mt-2.5 pt-2 border-t border-rose-700/60 grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+          <div className="mt-2.5 pt-2 border-t border-rose-700/60 grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">
             <div className="bg-black/35 p-2.5 rounded-lg border border-white/10 space-y-1">
               <span className="text-[10px] font-bold text-amber-300 uppercase tracking-wide flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3 text-amber-400" />
-                Active Flood Report Allocated to {user.name} ({activeLoc.street_name}):
+                Active Flood Alert for {user.name} ({activeLoc.street_name}):
               </span>
               <p className="text-white font-medium leading-snug">
-                🚨 <strong>{activeLoc.source === 'citizen_report' ? 'VERIFIED CITIZEN REPORT' : 'EOC TELEMETRY NOWCAST'}:</strong> {activeLoc.message}
+                🚨 <strong>{activeLoc.source === 'citizen_report' ? 'VERIFIED CITIZEN REPORT' : activeLoc.source === 'live_location' ? 'LIVE CHECKED LOCATION' : 'EOC TELEMETRY NOWCAST'}:</strong> {activeLoc.message}
+              </p>
+            </div>
+
+            <div className="bg-teal-950/45 p-2.5 rounded-lg border border-teal-500/30 space-y-1">
+              <span className="text-[10px] font-bold text-teal-300 uppercase tracking-wide flex items-center gap-1">
+                <Navigation className="w-3 h-3 text-teal-400" />
+                Lively Location & Proximity Analysis:
+              </span>
+              <p className="text-teal-100 font-medium leading-snug">
+                {liveLocation ? (
+                  <>
+                    Nearest Choke Point: <strong>{liveLocation.nearestPlaceName}</strong> ({liveLocation.distanceKm} km away) in {liveLocation.city}. Flood Risk: <span className="text-amber-300 font-bold">{liveLocation.riskLevel}</span>. Checked at {liveLocation.checkedAt}.
+                  </>
+                ) : (
+                  <>Live GPS tracking ready. Click 'Check Live Location' to calculate instant proximity.</>
+                )}
               </p>
             </div>
 
