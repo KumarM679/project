@@ -312,13 +312,23 @@ export const MONITORED_PLACES_BY_ZONE: Record<string, MonitoredPlace[]> = {
   Chikkaballapur: [
     {
       id: 28,
-      name: 'BB Road - Shidlaghatta Circle Underpass',
+      name: 'BB Road - Shidlaghatta Circle Underpass Sump',
       ward_name: 'Shidlaghatta Circle',
       city: 'Chikkaballapur',
       latitude: 13.4355,
       longitude: 77.7290,
+      default_risk: 'Critical',
+      advisory: 'Severe sump flood depression. Immediate road closure recommended. Avoid underpass completely.'
+    },
+    {
+      id: 30,
+      name: 'Chikkaballapur Old Bus Stand Low Depression',
+      ward_name: 'Central Town',
+      city: 'Chikkaballapur',
+      latitude: 13.4310,
+      longitude: 77.7240,
       default_risk: 'High',
-      advisory: 'Heavy underpass dip accumulation. Divert via outer bypass road.'
+      advisory: 'Commercial basin waterlogging. Move towards elevated central road.'
     },
     {
       id: 29,
@@ -331,14 +341,14 @@ export const MONITORED_PLACES_BY_ZONE: Record<string, MonitoredPlace[]> = {
       advisory: 'Lake surplus backflow on curbside. Maintain crawl speed.'
     },
     {
-      id: 30,
-      name: 'Chikkaballapur Old Bus Stand Low Depression',
-      ward_name: 'Central Town',
+      id: 31,
+      name: 'Prashanth Nagar Main Elevated Ridge Road',
+      ward_name: 'Prashanth Nagar',
       city: 'Chikkaballapur',
-      latitude: 13.4310,
-      longitude: 77.7240,
-      default_risk: 'High',
-      advisory: 'Commercial basin waterlogging. Move towards elevated central road.'
+      latitude: 13.4410,
+      longitude: 77.7210,
+      default_risk: 'Low',
+      advisory: 'Elevated ridgeline corridor with high drainage capacity. Normal movement permissible.'
     }
   ]
 };
