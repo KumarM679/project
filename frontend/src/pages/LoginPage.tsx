@@ -157,20 +157,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
               <Radio className="w-3.5 h-3.5 text-amber-400 animate-ping" />
               Public Citizen Flood Alert Portal
             </span>
-            <button
-              onClick={onBack}
-              className="text-xs text-slate-300 hover:text-teal-300 transition-colors font-bold underline flex items-center gap-1"
-              title={user.isLoggedIn ? "Back to Dashboard" : "Browse as guest resident"}
-            >
-              {user.isLoggedIn ? (
-                <>
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to Dashboard</span>
-                </>
-              ) : (
-                <span>Continue as Guest Resident →</span>
-              )}
-            </button>
+            {user.isLoggedIn && (
+              <button
+                onClick={onBack}
+                className="text-xs text-slate-300 hover:text-teal-300 transition-colors font-bold underline flex items-center gap-1 cursor-pointer"
+                title="Back to Dashboard"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Dashboard</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-3.5 mb-2">
@@ -364,16 +360,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
             >
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>⚡ Instant Citizen Demo</span>
-            </button>
-          </div>
-
-          <div className="pt-2 text-center border-t border-slate-100">
-            <button
-              type="button"
-              onClick={onBack}
-              className="text-xs text-slate-500 hover:text-blue-600 transition-colors font-semibold"
-            >
-              Just browsing? Continue to Dashboard as Anonymous Resident →
             </button>
           </div>
         </form>
