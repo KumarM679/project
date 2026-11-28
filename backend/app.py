@@ -1534,11 +1534,11 @@ init_db()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print("=" * 60)
-    print(" * JalDrishti Backend Server Active!")
-    print(f" * Localhost URL: http://localhost:{port}")
-    print(f" * IP Address:    http://127.0.0.1:{port}")
-    print("=" * 60)
+    print("=" * 60, flush=True)
+    print(" * JalDrishti Backend Server Active!", flush=True)
+    print(f" * Localhost URL: http://localhost:{port}", flush=True)
+    print(f" * IP Address:    http://127.0.0.1:{port}", flush=True)
+    print("=" * 60, flush=True)
     try:
         from waitress import serve
         serve(app, host='0.0.0.0', port=port, threads=6)

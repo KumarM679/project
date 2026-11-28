@@ -109,125 +109,127 @@ export const Navbar: React.FC<NavbarProps> = ({
           </p>
         </div>
 
-        {/* Action Controls & Scenario Simulator */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Scenario Simulator Pill */}
-          <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200/80">
-            <span className="text-[11px] font-semibold text-slate-600 px-2 flex items-center gap-1">
-              <CloudLightning className="w-3.5 h-3.5 text-amber-600" />
-              Scenario:
-            </span>
-            <select
-              value={scenario}
-              disabled={isApplyingScenario}
-              onChange={(e) => handleScenarioChange(e.target.value as any)}
-              className="text-xs font-semibold bg-white rounded-md px-2 py-1 text-slate-800 border border-slate-200 shadow-xs focus:outline-none focus:border-teal-500 cursor-pointer disabled:opacity-50"
-            >
-              <option value="dry">☀️ Dry Weather (0 mm/h)</option>
-              <option value="moderate_shower">🌦️ Moderate Rain (24 mm/h)</option>
-              <option value="monsoon_heavy">🌧️ Heavy Monsoon (58 mm/h)</option>
-              <option value="cloudburst">⛈️ Cloudburst Event (98.5 mm/h)</option>
-            </select>
-          </div>
+        {/* Action Controls & Scenario Simulator - Dashboard only */}
+        {currentTab === 'dashboard' && (
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Scenario Simulator Pill */}
+            <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-600 px-2 flex items-center gap-1">
+                <CloudLightning className="w-3.5 h-3.5 text-amber-600" />
+                Scenario:
+              </span>
+              <select
+                value={scenario}
+                disabled={isApplyingScenario}
+                onChange={(e) => handleScenarioChange(e.target.value as any)}
+                className="text-xs font-semibold bg-white rounded-md px-2 py-1 text-slate-800 border border-slate-200 shadow-xs focus:outline-none focus:border-teal-500 cursor-pointer disabled:opacity-50"
+              >
+                <option value="dry">☀️ Dry Weather (0 mm/h)</option>
+                <option value="moderate_shower">🌦️ Moderate Rain (24 mm/h)</option>
+                <option value="monsoon_heavy">🌧️ Heavy Monsoon (58 mm/h)</option>
+                <option value="cloudburst">⛈️ Cloudburst Event (98.5 mm/h)</option>
+              </select>
+            </div>
 
-          {/* Quick Alert Evaluation Engine Button */}
-          <button
-            onClick={handleTriggerAlertEngine}
-            disabled={isEvaluatingAlerts}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 active:bg-rose-200 transition-colors shadow-xs disabled:opacity-50"
-            title="Evaluate hydrologic risk across all monitored streets and issue deduplicated alerts"
-          >
-            <BellRing className={`w-3.5 h-3.5 text-rose-600 ${isEvaluatingAlerts ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Evaluate Nowcast</span>
-          </button>
-
-          {/* Portal Switcher Pill */}
-          <button
-            onClick={() => {
-              const nextPortal = portal === 'eoc' ? 'public' : 'eoc';
-              setPortal(nextPortal);
-              addToast(
-                nextPortal === 'public'
-                  ? 'Switched to Public User View (Live EOC Advisories Connected)'
-                  : 'Switched to EOC Commander View',
-                'info'
-              );
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
-              portal === 'public'
-                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-teal-50 text-teal-800 border border-teal-300 hover:bg-teal-100'
-            }`}
-            title="Toggle between EOC Commander and Public User views"
-          >
-            {portal === 'public' ? (
-              <>
-                <ShieldAlert className="w-3.5 h-3.5 text-blue-200" />
-                <span>Switch to EOC Commander</span>
-              </>
-            ) : (
-              <>
-                <Users className="w-3.5 h-3.5 text-teal-700" />
-                <span>Switch to Public User</span>
-              </>
-            )}
-          </button>
-
-          {/* Drainage Action */}
-          <button
-            onClick={onOpenDrainageModal}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 transition-colors shadow-xs"
-            title="Update drainage maintenance"
-          >
-            <Layers className="w-3.5 h-3.5 text-teal-400" />
-            <span>+ Update Drain</span>
-          </button>
-
-          {/* User Account & Alert Subscription Pill */}
-          <div className="flex items-center bg-slate-100 rounded-lg border border-slate-300 p-0.5 shadow-xs">
+            {/* Quick Alert Evaluation Engine Button */}
             <button
-              onClick={() => setAuthModalOpen(true)}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-800 hover:text-teal-800 transition-colors"
-              title="Manage alert subscription profile & device credentials"
+              onClick={handleTriggerAlertEngine}
+              disabled={isEvaluatingAlerts}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 active:bg-rose-200 transition-colors shadow-xs disabled:opacity-50"
+              title="Evaluate hydrologic risk across all monitored streets and issue deduplicated alerts"
             >
-              <div className={`w-2 h-2 rounded-full ${user.role === 'citizen' ? 'bg-blue-600' : 'bg-emerald-600'} animate-pulse`} />
-              <span className="truncate max-w-[120px] font-extrabold">{user.name}</span>
-              <span className="text-[10px] text-slate-500 hidden md:inline">({user.role === 'citizen' ? 'Citizen' : 'Officer'})</span>
+              <BellRing className={`w-3.5 h-3.5 text-rose-600 ${isEvaluatingAlerts ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Evaluate Nowcast</span>
             </button>
+
+            {/* Portal Switcher Pill */}
             <button
-              onClick={() => logoutUserSession()}
-              className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200 transition-colors ml-1"
-              title="Sign Out to Login Page"
+              onClick={() => {
+                const nextPortal = portal === 'eoc' ? 'public' : 'eoc';
+                setPortal(nextPortal);
+                addToast(
+                  nextPortal === 'public'
+                    ? 'Switched to Public User View (Live EOC Advisories Connected)'
+                    : 'Switched to EOC Commander View',
+                  'info'
+                );
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs ${
+                portal === 'public'
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                  : 'bg-teal-50 text-teal-800 border border-teal-300 hover:bg-teal-100'
+              }`}
+              title="Toggle between EOC Commander and Public User views"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              {portal === 'public' ? (
+                <>
+                  <ShieldAlert className="w-3.5 h-3.5 text-blue-200" />
+                  <span>Switch to EOC Commander</span>
+                </>
+              ) : (
+                <>
+                  <Users className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Switch to Public User</span>
+                </>
+              )}
+            </button>
+
+            {/* Drainage Action */}
+            <button
+              onClick={onOpenDrainageModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-white hover:bg-slate-900 transition-colors shadow-xs"
+              title="Update drainage maintenance"
+            >
+              <Layers className="w-3.5 h-3.5 text-teal-400" />
+              <span>+ Update Drain</span>
+            </button>
+
+            {/* User Account & Alert Subscription Pill */}
+            <div className="flex items-center bg-slate-100 rounded-lg border border-slate-300 p-0.5 shadow-xs">
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-800 hover:text-teal-800 transition-colors"
+                title="Manage alert subscription profile & device credentials"
+              >
+                <div className={`w-2 h-2 rounded-full ${user.role === 'citizen' ? 'bg-blue-600' : 'bg-emerald-600'} animate-pulse`} />
+                <span className="truncate max-w-[120px] font-extrabold">{user.name}</span>
+                <span className="text-[10px] text-slate-500 hidden md:inline">({user.role === 'citizen' ? 'Citizen' : 'Officer'})</span>
+              </button>
+              <button
+                onClick={() => logoutUserSession()}
+                className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-slate-200 transition-colors ml-1"
+                title="Sign Out to Login Page"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Backend Server Settings */}
+            <button
+              onClick={() => setIsBackendModalOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Configure Live Python Backend URL"
+            >
+              <Server className="w-3.5 h-3.5 text-teal-600" />
+              <span className="hidden sm:inline">
+                {getBackendBaseUrl() ? 'Live Backend' : 'Demo Mode'}
+              </span>
+              <div className={`w-1.5 h-1.5 rounded-full ${getBackendBaseUrl() ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            </button>
+
+            {/* Refresh Data */}
+            <button
+              onClick={() => {
+                triggerRefresh();
+                addToast('Refreshed telemetry & calculations', 'info');
+              }}
+              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors"
+              title="Refresh Live Telemetry"
+            >
+              <RefreshCw className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Backend Server Settings */}
-          <button
-            onClick={() => setIsBackendModalOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
-            title="Configure Live Python Backend URL"
-          >
-            <Server className="w-3.5 h-3.5 text-teal-600" />
-            <span className="hidden sm:inline">
-              {getBackendBaseUrl() ? 'Live Backend' : 'Demo Mode'}
-            </span>
-            <div className={`w-1.5 h-1.5 rounded-full ${getBackendBaseUrl() ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-          </button>
-
-          {/* Refresh Data */}
-          <button
-            onClick={() => {
-              triggerRefresh();
-              addToast('Refreshed telemetry & calculations', 'info');
-            }}
-            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 border border-slate-200 transition-colors"
-            title="Refresh Live Telemetry"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+        )}
       </div>
 
       {/* Backend URL Configuration Modal */}
