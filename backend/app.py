@@ -1534,9 +1534,13 @@ init_db()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    print("=" * 60)
+    print(" * JalDrishti Backend Server Active!")
+    print(f" * Localhost URL: http://localhost:{port}")
+    print(f" * IP Address:    http://127.0.0.1:{port}")
+    print("=" * 60)
     try:
         from waitress import serve
-        print(f" * Production WSGI server active (Waitress) on http://0.0.0.0:{port}")
         serve(app, host='0.0.0.0', port=port, threads=6)
     except ImportError:
         app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

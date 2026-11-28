@@ -13,8 +13,9 @@ timeout /t 3 /nobreak >nul
 echo 2. Launching Cloudflare Tunnel...
 echo.
 echo ========================================================
-echo   Look for the URL below ending in .trycloudflare.com
-echo   Share that URL with anyone to view your live app!
+echo   - Localhost URL:   http://localhost:5000
+echo   - Public Web Link: (Look for URL below ending in .trycloudflare.com)
+echo   Share the trycloudflare.com URL with anyone to view your live app!
 echo ========================================================
 echo.
 cloudflared.exe tunnel --url http://127.0.0.1:5000
