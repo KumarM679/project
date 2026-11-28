@@ -15,6 +15,12 @@ FRONTEND_DIST = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'f
 app = Flask(__name__, static_folder=None)
 CORS(app)
 
+@app.errorhandler(BrokenPipeError)
+@app.errorhandler(ConnectionResetError)
+def handle_broken_pipe(error):
+    # Gracefully ignore socket write closures when client browser disconnects or cancels
+    return '', 204
+
 def get_system_weights():
     conn = get_db_connection()
     cursor = conn.cursor()
