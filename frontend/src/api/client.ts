@@ -11,30 +11,34 @@ import {
   UserSession,
   RegisterUserData
 } from '../types';
+import { getMockResponse } from './mockFallback';
 
 const API_BASE = '/api';
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
 
-  if (!response.ok) {
-    let errMsg = `Request failed: ${response.status} ${response.statusText}`;
-    try {
-      const errObj = await response.json();
-      if (errObj && errObj.error) errMsg = errObj.error;
-    } catch {
-      // ignore json parse error
+    if (response.ok) {
+      return await response.json();
     }
-    throw new Error(errMsg);
+  } catch {
+    // Network or server unreachable (e.g. static GitHub Pages hosting)
   }
 
-  return response.json();
+  // Fallback to built-in telemetry simulation when static
+  const fallback = getMockResponse<T>(url, options);
+  if (fallback !== null) {
+    return fallback;
+  }
+
+  throw new Error(`Endpoint unavailable: ${url}`);
 }
 
 export const api = {
