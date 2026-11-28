@@ -20,7 +20,6 @@ import {
   ArrowRight,
   Phone,
   Mail,
-  Sparkles,
   ArrowLeft,
   Crosshair,
   Loader2,
@@ -30,8 +29,7 @@ import {
   Home,
   CheckCircle2,
   KeyRound,
-  ShieldCheck,
-  AlertTriangle
+  ShieldCheck
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -228,36 +226,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
     }
   };
 
-  // Demo Citizen Quick Sign-In
-  const handleQuickDemoLogin = async (cityChoice: 'Chikkaballapur' | 'Bengaluru' = 'Chikkaballapur') => {
-    setIsLoading(true);
-    try {
-      const targetPhone = cityChoice === 'Chikkaballapur' ? '+91 94480 55501' : '+91 98765 43210';
-      const targetName = cityChoice === 'Chikkaballapur' ? 'Manjunath Gowda (Citizen)' : 'Ananya Rao (Citizen)';
-      const targetSpot =
-        cityChoice === 'Chikkaballapur'
-          ? 'BB Road - Shidlaghatta Circle Underpass Sump'
-          : 'Silk Board Junction Low-Lying Underpass';
-
-      const res = await api.loginUser({
-        phone: targetPhone,
-        name: targetName,
-        city: cityChoice,
-        ward_name: targetSpot
-      });
-
-      loginUserSession(res.user);
-      await checkLiveLocation(targetSpot, false, true);
-      setMuteAllAudio(false);
-      addToast(`⚡ Instant Demo Login as ${res.user.name} (${cityChoice})`, 'success');
-      onSuccess();
-    } catch (err: any) {
-      addToast(err.message || 'Demo login failed', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const currentZoneMeta = ZONE_LOCATION_METADATA[city] || ZONE_LOCATION_METADATA['Chikkaballapur'];
 
   return (
@@ -385,44 +353,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
-              </div>
-            </div>
-
-            {/* Quick Demo Citizen Buttons */}
-            <div className="pt-2">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
-                ⚡ Instant Quick Sign-In (Demo Resident Profiles):
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemoLogin('Chikkaballapur')}
-                  disabled={isLoading}
-                  className="py-2.5 px-3 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-all flex items-center justify-between shadow-2xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    <span className="font-extrabold">Chikkaballapur Resident</span>
-                  </div>
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-200/60 px-1.5 py-0.5 rounded">
-                    Ward 12
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleQuickDemoLogin('Bengaluru')}
-                  disabled={isLoading}
-                  className="py-2.5 px-3 rounded-xl text-xs font-bold bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-all flex items-center justify-between shadow-2xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    <span className="font-extrabold">Bengaluru Resident</span>
-                  </div>
-                  <span className="text-[10px] font-semibold text-blue-700 bg-blue-200/60 px-1.5 py-0.5 rounded">
-                    Silk Board
-                  </span>
-                </button>
               </div>
             </div>
 
@@ -675,28 +605,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
                   placeholder="e.g. Near Shidlaghatta Circle Underpass Sump, Main Road"
                   className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-medium text-slate-900 bg-white"
                 />
-              </div>
-
-              {/* Nearest Monitored Corridor / Choke Point */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  Target Monitored Corridor in {city} (For Siren Dispatch) <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={wardName}
-                  onChange={(e) => setWardName(e.target.value)}
-                  className="w-full text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:border-blue-500 font-semibold bg-white text-slate-900"
-                >
-                  {getPlacesForZone(city).map((place) => (
-                    <option key={place.id} value={place.name}>
-                      {place.name} ({place.ward_name}) — [{place.default_risk} Risk]
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  When this choke point accumulates water, your registered device will sound a piercing alarm.
-                </p>
               </div>
             </div>
 
