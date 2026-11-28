@@ -32,6 +32,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { playDeviceAlertTone, stopDeviceAlertTone, triggerDeviceNotification } from '../utils/soundAlert';
+import { EOCTacticalPanel } from '../components/EOCTacticalPanel';
 
 interface DashboardPageProps {
   onNavigate: (tab: string, streetId?: number) => void;
@@ -168,8 +169,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* 🚨 DEDICATED EOC COMMANDER LIVE EMERGENCY ADVISORY & PUBLIC MESSAGE ALERT SECTION */}
-      {emergencyAlert && (
+      {/* 🛡️ EOC COMMANDER TACTICAL CONSOLE - EXCLUSIVE TO EOC COMMANDER PORTAL */}
+      {portal === 'eoc' && (
+        <EOCTacticalPanel onNavigate={onNavigate} />
+      )}
+
+      {/* 🚨 DEDICATED CITIZEN LIVE EMERGENCY ADVISORY & PUBLIC MESSAGE ALERT SECTION - PUBLIC MODE */}
+      {portal === 'public' && emergencyAlert && (
         <div className="civic-card p-5 border-l-4 border-l-rose-600 bg-white shadow-sm space-y-3.5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">

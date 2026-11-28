@@ -28,6 +28,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
   const tabTitles: Record<string, { title: string; subtitle: string }> = {
+    'eoc-war-room': {
+      title: 'EOC Incident Command & Tactical War Room',
+      subtitle: 'Multi-agency emergency dispatch, automated underpass interlocks, and citywide sirens'
+    },
     dashboard: {
       title: 'Executive Command Dashboard',
       subtitle: 'Real-time citywide rainfall, drainage deficit, and street inundation intelligence'

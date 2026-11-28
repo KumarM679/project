@@ -10,6 +10,9 @@ import {
   Truck,
   BarChart3,
   ShieldCheck,
+  ShieldAlert,
+  Radio,
+  Wifi,
   Building2,
   AlertOctagon,
   Users,
@@ -35,6 +38,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const cities = ['All Cities', 'Bengaluru', 'Hyderabad', 'Chennai', 'Pune', 'Vijayawada', 'Mysuru', 'Chikkaballapur'];
 
   const navItems = [
+    ...(portal === 'eoc'
+      ? [
+          {
+            id: 'eoc-war-room',
+            label: 'EOC Tactical War Room',
+            icon: ShieldAlert,
+            badge: 'WAR ROOM'
+          }
+        ]
+      : []),
     { id: 'dashboard', label: 'Dashboard Overview', icon: LayoutDashboard },
     { id: 'rainfall', label: 'Rainfall Monitoring', icon: CloudRain },
     { id: 'flood-map', label: 'Interactive Flood Map', icon: Map },
@@ -186,41 +199,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
 
-      {/* Role Switcher - only rendered in EOC Command mode, removed in Public User mode */}
+      {/* EOC Tactical Commander Credential Card - only rendered in EOC Command mode */}
       {portal === 'eoc' && (
-        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-900/80 border border-slate-800/80">
+        <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-900/90 border border-teal-500/30 shadow-md">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-semibold uppercase text-slate-400 flex items-center gap-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-              Active Role
+            <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+              EOC Incident Command
             </span>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">
-                {user.role}
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-500/20 text-teal-300 font-mono font-bold border border-teal-500/30">
+                VHF CH 16
               </span>
               <button
                 onClick={() => logoutUserSession()}
                 className="p-1 rounded text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors"
                 title="Sign Out to Login Screen"
               >
-                <LogOut className="w-3 h-3" />
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
 
-          <select
-            value={user.role}
-            onChange={(e) => setUserRole(e.target.value as UserRole)}
-            className="w-full bg-slate-950 text-white text-xs rounded-md px-2 py-1.5 border border-slate-700/80 focus:border-teal-500 text-xs font-medium"
-          >
-            <option value="eoc_chief">EOC Commander (Chief of Ops)</option>
-            <option value="ward_engineer">Ward Maintenance Engineer</option>
-            <option value="admin">System Admin</option>
-          </select>
+          <div className="text-xs font-black text-white truncate">{user.name}</div>
+          <div className="text-[10px] text-slate-400 font-medium">Chief of Operations • Central EOC</div>
+          <div className="text-[10px] text-teal-400 font-mono mt-0.5">Duty Net: 156.800 MHz (Tactical)</div>
 
-          <div className="mt-2 text-[11px] text-slate-400 flex items-center justify-between">
-            <span className="truncate font-medium text-slate-300">{user.name}</span>
-            <span className="text-teal-400 text-[10px]">{user.city}</span>
+          <div className="mt-2.5 pt-2 border-t border-slate-800/80">
+            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-1">
+              Active Authorization Level:
+            </label>
+            <select
+              value={user.role}
+              onChange={(e) => setUserRole(e.target.value as UserRole)}
+              className="w-full bg-slate-950 text-white text-xs rounded-lg px-2 py-1.5 border border-slate-700/80 focus:border-teal-500 font-bold cursor-pointer"
+            >
+              <option value="eoc_chief">EOC Commander (Chief of Ops)</option>
+              <option value="ward_engineer">Ward Maintenance Engineer</option>
+              <option value="admin">System Admin</option>
+            </select>
           </div>
         </div>
       )}

@@ -8,6 +8,7 @@ import { ToastContainer } from './components/ToastContainer';
 import { DrainageModal } from './components/DrainageModal';
 import { DeviceAlertBanner } from './components/DeviceAlertBanner';
 import { AuthModal } from './components/AuthModal';
+import { EOCTacticalPanel } from './components/EOCTacticalPanel';
 
 // Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -149,6 +150,12 @@ export const App: React.FC = () => {
 
         {/* Scrollable Viewport */}
         <main className="flex-1 overflow-y-auto pb-12">
+          {currentTab === 'eoc-war-room' && (
+            <div className="p-6 max-w-7xl mx-auto space-y-6">
+              <EOCTacticalPanel onNavigate={handleNavigate} />
+            </div>
+          )}
+
           {currentTab === 'dashboard' && (
             <DashboardPage
               onNavigate={handleNavigate}
