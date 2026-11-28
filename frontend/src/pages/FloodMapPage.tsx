@@ -5,16 +5,7 @@ import { api } from '../api/client';
 import { Street, DrainageRecord, CitizenReport } from '../types';
 import {
   Layers,
-  MapPin,
-  Filter,
-  Eye,
-  AlertOctagon,
-  Droplet,
-  Compass,
-  Info,
-  Crosshair,
-  Navigation,
-  Radio
+  Crosshair
 } from 'lucide-react';
 
 interface FloodMapPageProps {

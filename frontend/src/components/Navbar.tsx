@@ -8,8 +8,6 @@ import {
   Layers,
   Users,
   ShieldAlert,
-  User,
-  LogIn,
   LogOut
 } from 'lucide-react';
 

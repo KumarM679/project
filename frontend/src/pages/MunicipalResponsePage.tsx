@@ -5,14 +5,7 @@ import { MunicipalResponse, Street } from '../types';
 import {
   Truck,
   PlusCircle,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  Layers,
-  Wrench,
-  ShieldCheck,
-  Send,
-  Droplet
+  Loader2
 } from 'lucide-react';
 
 interface MunicipalResponsePageProps {
@@ -191,7 +184,17 @@ export const MunicipalResponsePage: React.FC<MunicipalResponsePageProps> = ({ st
           </span>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        {loading ? (
+          <div className="p-8 text-center text-xs text-slate-500 font-medium flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-teal-600" />
+            <span>Loading municipal response telemetry...</span>
+          </div>
+        ) : incidents.length === 0 ? (
+          <div className="p-8 text-center text-xs text-slate-500">
+            No active municipal incidents found for the selected filter.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
           {incidents.map((inc) => (
             <div key={inc.id} className="p-5 hover:bg-slate-50/50 transition-colors flex flex-col gap-3">
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-2">
@@ -260,6 +263,7 @@ export const MunicipalResponsePage: React.FC<MunicipalResponsePageProps> = ({ st
             </div>
           ))}
         </div>
+        )}
       </div>
 
       {/* Dispatch Modal */}

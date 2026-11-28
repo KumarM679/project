@@ -2,6 +2,7 @@ import os
 import json
 import sqlite3
 import io
+import re
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
@@ -439,7 +440,7 @@ def get_drainage_records():
 
 @app.route('/api/drainage', methods=['POST'])
 def create_drainage_record():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     street_id = data.get('street_id')
     drain_code = data.get('drain_code')
     drain_type = data.get('drain_type', 'RCC Box Storm Drain')
@@ -475,7 +476,7 @@ def create_drainage_record():
 
 @app.route('/api/drainage/<int:drain_id>', methods=['PUT'])
 def update_drainage_record(drain_id):
-    data = request.json
+    data = request.get_json(silent=True) or {}
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -635,7 +636,7 @@ def trigger_alert_generation():
 
 @app.route('/api/alerts/<int:alert_id>/status', methods=['PUT'])
 def update_alert_status(alert_id):
-    data = request.json
+    data = request.get_json(silent=True) or {}
     new_status = data.get('status', 'Acknowledged') # Active, Acknowledged, Dispatched, Resolved
 
     conn = get_db_connection()
@@ -757,7 +758,12 @@ def register_user():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+    clean_phone = re.sub(r'\D', '', phone)
+    cursor.execute("""
+        SELECT * FROM users 
+        WHERE phone = ? 
+        OR (length(?) >= 7 AND REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', '') = ?)
+    """, (phone, clean_phone, clean_phone))
     existing = cursor.fetchone()
 
     if existing:
@@ -768,8 +774,8 @@ def register_user():
             house_no = ?, pincode = ?, address = ?, nearest_spot = ?, street_id = ?,
             role = ?, alerts_enabled = ?, sound_alerts_enabled = ?, sms_alerts_enabled = ?,
             last_login = CURRENT_TIMESTAMP
-        WHERE phone = ?
-        ''', (name, email, password, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, role, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, phone))
+        WHERE id = ?
+        ''', (name, email, password, state, district, city, ward_no, ward_name, house_no, pincode, address, nearest_spot, street_id, role, alerts_enabled, sound_alerts_enabled, sms_alerts_enabled, existing['id']))
         user_id = existing['id']
     else:
         badge = f"CITIZEN-{city[:2].upper()}-{phone[-4:]}" if role == 'citizen' else f"OFFICER-{city[:2].upper()}-99"
@@ -819,8 +825,17 @@ def login_user():
         user = cursor.fetchone()
     elif identifier or phone or email:
         target = identifier or phone or email
-        # Look up by phone OR email OR name
-        cursor.execute("SELECT * FROM users WHERE phone = ? OR email = ? OR name = ?", (target, target, target))
+        clean_target = re.sub(r'\D', '', target)
+        # Look up by phone OR email OR name with phone normalization support
+        if clean_target and len(clean_target) >= 7:
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE phone = ? OR email = ? OR name = ? 
+                OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', '') = ?
+                OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', '') LIKE ?
+            """, (target, target, target, clean_target, f"%{clean_target[-10:]}%"))
+        else:
+            cursor.execute("SELECT * FROM users WHERE phone = ? OR email = ? OR name = ?", (target, target, target))
         user = cursor.fetchone()
         
         # If user not found and it looks like a phone number, quick-provision standard resident record
@@ -883,7 +898,17 @@ def get_current_user():
     if user_id:
         cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
     elif phone:
-        cursor.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+        clean_phone = re.sub(r'\D', '', phone)
+        if clean_phone and len(clean_phone) >= 7:
+            cursor.execute("""
+                SELECT * FROM users 
+                WHERE phone = ? 
+                OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', '') = ?
+                OR REPLACE(REPLACE(REPLACE(phone, ' ', ''), '+', ''), '-', '') LIKE ?
+                ORDER BY last_login DESC LIMIT 1
+            """, (phone, clean_phone, f"%{clean_phone[-10:]}%"))
+        else:
+            cursor.execute("SELECT * FROM users WHERE phone = ? ORDER BY last_login DESC LIMIT 1", (phone,))
     else:
         cursor.execute("SELECT * FROM users ORDER BY last_login DESC LIMIT 1")
     user = cursor.fetchone()
@@ -1050,7 +1075,7 @@ def get_citizen_reports():
 @app.route('/api/citizen-reports', methods=['POST'])
 @app.route('/api/citizen-report', methods=['POST'])
 def submit_citizen_report():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     street_name = data.get('street_name')
     ward_name = data.get('ward_name', 'General Ward')
     city = data.get('city', 'Bengaluru')
@@ -1103,7 +1128,7 @@ def upvote_citizen_report(report_id):
 
 @app.route('/api/citizen-reports/<int:report_id>/status', methods=['PUT'])
 def update_report_status(report_id):
-    data = request.json
+    data = request.get_json(silent=True) or {}
     new_status = data.get('status', 'Verified & Queued')
 
     conn = get_db_connection()
@@ -1152,7 +1177,7 @@ def get_municipal_responses():
 @app.route('/api/municipal-response', methods=['POST'])
 @app.route('/api/municipal-responses', methods=['POST'])
 def create_municipal_response():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     street_id = data.get('street_id')
     street_name = data.get('street_name')
     ward_name = data.get('ward_name', 'General Ward')
@@ -1181,7 +1206,7 @@ def create_municipal_response():
 
 @app.route('/api/municipal-response/<int:response_id>', methods=['PUT'])
 def update_municipal_response(response_id):
-    data = request.json
+    data = request.get_json(silent=True) or {}
     status = data.get('status') # Dispatched, On-Site Dewatering, Completed, Closed
     resolution_notes = data.get('resolution_notes')
     pumps = data.get('dewatering_pumps_deployed')
@@ -1423,7 +1448,7 @@ def get_system_settings():
 
 @app.route('/api/settings', methods=['PUT'])
 def update_system_settings():
-    data = request.json # list of {key, value} or dict
+    data = request.get_json(silent=True) or {} # list of {key, value} or dict
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -1444,7 +1469,7 @@ def update_system_settings():
 # --- SIMULATION SCENARIOS (Cloudburst, Heavy Monsoon, Moderate Shower, Dry Weather) ---
 @app.route('/api/simulation/apply-scenario', methods=['POST'])
 def apply_simulation_scenario():
-    data = request.json or {}
+    data = request.get_json(silent=True) or {}
     scenario = data.get('scenario', 'monsoon_heavy') # dry, moderate_shower, monsoon_heavy, cloudburst
 
     conn = get_db_connection()

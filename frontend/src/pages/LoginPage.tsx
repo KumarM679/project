@@ -27,7 +27,6 @@ import {
   Eye,
   EyeOff,
   Home,
-  CheckCircle2,
   KeyRound,
   ShieldCheck
 } from 'lucide-react';

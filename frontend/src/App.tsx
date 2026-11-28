@@ -18,11 +18,18 @@ import { DrainagePage } from './pages/DrainagePage';
 import { AlertsPage } from './pages/AlertsPage';
 import { MunicipalResponsePage } from './pages/MunicipalResponsePage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
-import { PublicPortalPage } from './pages/PublicPortalPage';
 import { LoginPage } from './pages/LoginPage';
 
 export const App: React.FC = () => {
-  const { activeCity, refreshTrigger, triggerRefresh, portal, setPortal, user, loginUserSession, isAuthModalOpen, setAuthModalOpen } = useApp();
+  const {
+    activeCity,
+    refreshTrigger,
+    user,
+    loginUserSession,
+    triggerRefresh,
+    isAuthModalOpen,
+    setAuthModalOpen
+  } = useApp();
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [activeAlertsCount, setActiveAlertsCount] = useState<number>(0);
   const [streetsList, setStreetsList] = useState<Street[]>([]);
