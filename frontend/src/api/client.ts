@@ -13,11 +13,17 @@ import {
 } from '../types';
 import { getMockResponse } from './mockFallback';
 
+export const DEFAULT_LIVE_BACKEND_URL = 'https://dual-forgot-permanent-ethics.trycloudflare.com';
+
 export function getBackendBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('jaldrishti_backend_url');
     if (custom) {
       return custom.replace(/\/+$/, '');
+    }
+    // Automatically connect to live Python backend when running on GitHub Pages
+    if (window.location.hostname.includes('github.io')) {
+      return DEFAULT_LIVE_BACKEND_URL;
     }
   }
   return '';
