@@ -13,11 +13,41 @@ import {
 } from '../types';
 import { getMockResponse } from './mockFallback';
 
+export function getBackendBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('jaldrishti_backend_url');
+    if (custom) {
+      return custom.replace(/\/+$/, '');
+    }
+  }
+  return '';
+}
+
+export function setBackendBaseUrl(url: string): void {
+  if (typeof window !== 'undefined') {
+    const clean = url.trim().replace(/\/+$/, '');
+    if (!clean) {
+      localStorage.removeItem('jaldrishti_backend_url');
+    } else {
+      localStorage.setItem('jaldrishti_backend_url', clean);
+    }
+  }
+}
+
+function resolveUrl(path: string): string {
+  const base = getBackendBaseUrl();
+  if (base) {
+    return `${base}${path.startsWith('/') ? path : '/' + path}`;
+  }
+  return path;
+}
+
 const API_BASE = '/api';
 
-async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const fullUrl = resolveUrl(path);
   try {
-    const response = await fetch(url, {
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -33,12 +63,12 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   }
 
   // Fallback to built-in telemetry simulation when static
-  const fallback = getMockResponse<T>(url, options);
+  const fallback = getMockResponse<T>(path, options);
   if (fallback !== null) {
     return fallback;
   }
 
-  throw new Error(`Endpoint unavailable: ${url}`);
+  throw new Error(`Endpoint unavailable: ${path}`);
 }
 
 export const api = {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../api/client';
+import { api, getBackendBaseUrl } from '../api/client';
+import { BackendModal } from '../components/BackendModal';
 import { setMuteAllAudio, stopDeviceAlertTone } from '../utils/soundAlert';
 import {
   OPERATIONAL_ZONES,
@@ -28,7 +29,8 @@ import {
   EyeOff,
   Home,
   KeyRound,
-  ShieldCheck
+  ShieldCheck,
+  Server
 } from 'lucide-react';
 
 interface LoginPageProps {
@@ -72,6 +74,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
   // Strictly mute and silence all audio while on the login page
   useEffect(() => {
@@ -670,6 +673,28 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, onBack }) => {
             </div>
           </form>
         )}
+
+        {/* Footer info & live backend connector */}
+        <div className="bg-slate-50 border-t border-slate-200/80 px-6 py-3 flex items-center justify-between text-xs text-slate-500">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className={`w-2 h-2 rounded-full ${getBackendBaseUrl() ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+            {getBackendBaseUrl() ? 'Live Python Backend Connected' : 'Running in In-Browser Demo Mode'}
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsBackendModalOpen(true)}
+            className="flex items-center gap-1 text-teal-700 hover:text-teal-900 font-bold underline cursor-pointer"
+          >
+            <Server className="w-3.5 h-3.5" />
+            <span>Connect Live Backend</span>
+          </button>
+        </div>
+
+        {/* Backend Configuration Modal */}
+        <BackendModal
+          isOpen={isBackendModalOpen}
+          onClose={() => setIsBackendModalOpen(false)}
+        />
       </div>
     </div>
   );

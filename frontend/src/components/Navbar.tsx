@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../api/client';
+import { api, getBackendBaseUrl } from '../api/client';
+import { BackendModal } from './BackendModal';
 import {
   CloudLightning,
   RefreshCw,
@@ -8,7 +9,8 @@ import {
   Layers,
   Users,
   ShieldAlert,
-  LogOut
+  LogOut,
+  Server
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -23,6 +25,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { activeCity, scenario, setScenario, triggerRefresh, addToast, portal, setPortal, user, setAuthModalOpen, logoutUserSession } = useApp();
   const [isApplyingScenario, setIsApplyingScenario] = useState(false);
   const [isEvaluatingAlerts, setIsEvaluatingAlerts] = useState(false);
+  const [isBackendModalOpen, setIsBackendModalOpen] = useState(false);
 
   const tabTitles: Record<string, { title: string; subtitle: string }> = {
     dashboard: {
@@ -200,6 +203,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
 
+          {/* Backend Server Settings */}
+          <button
+            onClick={() => setIsBackendModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Configure Live Python Backend URL"
+          >
+            <Server className="w-3.5 h-3.5 text-teal-600" />
+            <span className="hidden sm:inline">
+              {getBackendBaseUrl() ? 'Live Backend' : 'Demo Mode'}
+            </span>
+            <div className={`w-1.5 h-1.5 rounded-full ${getBackendBaseUrl() ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          </button>
+
           {/* Refresh Data */}
           <button
             onClick={() => {
@@ -213,6 +229,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Backend URL Configuration Modal */}
+      <BackendModal
+        isOpen={isBackendModalOpen}
+        onClose={() => setIsBackendModalOpen(false)}
+        onConnected={() => triggerRefresh()}
+      />
     </header>
   );
 };
